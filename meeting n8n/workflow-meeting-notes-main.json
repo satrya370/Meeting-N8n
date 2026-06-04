@@ -1,0 +1,1090 @@
+{
+  "id": "XscXJksppe3HR3tS",
+  "name": "Meeting Notes \u00e2\u20ac\u201d Main Pipeline",
+  "active": true,
+  "nodes": [
+    {
+      "parameters": {
+        "formTitle": "Meeting Notes Automation",
+        "formDescription": "Upload rekaman meeting kamu untuk membuat notulen otomatis.",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "File Rekaman Meeting",
+              "fieldType": "file",
+              "fieldName": "recording",
+              "acceptFileTypes": ".mp4,.mp3,.m4a,.wav,.webm,.ogg",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Nama Meeting (opsional)",
+              "fieldName": "meeting_name"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "ef82b407-1010-466c-873e-1ffc608ff103",
+      "name": "Upload Meeting Recording",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.5,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "36283c3b-8f86-458c-a43d-36142925402f"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.koboillm.com/v1/audio/transcriptions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "openAiApi",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "file",
+              "inputDataFieldName": "recording"
+            },
+            {
+              "name": "model",
+              "value": "openai/whisper-1"
+            },
+            {
+              "name": "response_format",
+              "value": "json"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "f4233061-9393-463d-b193-3f6a3ff34be1",
+      "name": "Transcribe with Whisper",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        672,
+        -208
+      ]
+    },
+    {
+      "parameters": {
+        "messages": {
+          "values": [
+            {
+              "content": "=Kamu adalah asisten notulen profesional. {{ $json.focus_instruction }}\n\nDari transkrip meeting berikut, ekstrak informasi dalam format JSON murni (tanpa teks lain, tanpa markdown fence).\n\nJENIS MEETING: {{ $json.meeting_type || 'general' }}\nFOKUS EKSTRAKSI: {{ $json.key_focus.join(', ') }}\n\nSKEMA YANG HARUS DIKEMBALIKAN:\n{ \"meeting_title\": \"judul meeting dari konteks\", \"date\": \"YYYY-MM-DD\", \"participants\": [\"string\"], \"key_decisions\": [\"string\"], \"action_items\": [{\"task\": \"string\", \"owner\": \"string|null\", \"due_date\": \"string|null\"}], \"discussion_topics\": [{\"topic\": \"string\", \"summary\": \"string\"}], \"open_questions\": [\"string\"], \"executive_summary\": \"string (3-4 kalimat)\" }\n\nATURAN:\n- Jika owner atau due_date tidak disebut, isi null. Jangan mengarang.\n- participants: hanya nama yang benar-benar muncul di transkrip.\n- key_decisions: hanya keputusan final, bukan opsi yang dibahas.\n- Untuk date: {{ $now.toFormat('yyyy-MM-dd') }} jika tidak disebutkan.\n- Bahasa output: {{ $json.language }}\n\nTRANSKRIP:\n\"\"\"\n{{ $json.transcript }}\n\"\"\""
+            }
+          ]
+        },
+        "options": {
+          "hideThinking": true,
+          "maxTokens": 16000,
+          "temperature": 0.1
+        }
+      },
+      "id": "93fd002d-7c7c-49bd-9616-b5a6f7901263",
+      "name": "Extract - Meeting",
+      "type": "@n8n/n8n-nodes-langchain.minimax",
+      "typeVersion": 1,
+      "position": [
+        1120,
+        -256
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst item = $input.first();\nlet raw = item.json.text || item.json.content || item.json.message || item.json.output || JSON.stringify(item.json);\n\n// Strip markdown fences jika ada\nraw = String(raw).replace(/^```json\\s*/i, '').replace(/```\\s*$/, '').trim();\n\nlet parsed;\ntry {\n  parsed = JSON.parse(raw);\n} catch(e) {\n  const match = raw.match(/\\{[\\s\\S]*\\}/);\n  if (match) {\n    parsed = JSON.parse(match[0]);\n  } else {\n    throw new Error('Gagal parse JSON dari AI: ' + raw.substring(0, 300));\n  }\n}\n\n// Default values untuk field kosong\nparsed.meeting_title = parsed.meeting_title || 'Untitled Meeting';\nparsed.date = parsed.date || new Date().toISOString().split('T')[0];\nparsed.participants = Array.isArray(parsed.participants) ? parsed.participants : [];\nparsed.key_decisions = Array.isArray(parsed.key_decisions) ? parsed.key_decisions : [];\nparsed.action_items = Array.isArray(parsed.action_items) ? parsed.action_items : [];\nparsed.discussion_topics = Array.isArray(parsed.discussion_topics) ? parsed.discussion_topics : [];\nparsed.open_questions = Array.isArray(parsed.open_questions) ? parsed.open_questions : [];\nparsed.executive_summary = parsed.executive_summary || '';\nparsed.action_items_count = parsed.action_items.length;\n\nreturn [{ json: parsed }];\n"
+      },
+      "id": "51f96279-d0bc-4f6f-aadb-8ac500abd9ad",
+      "name": "Parse AI Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1392,
+        -256
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "databaseId": {
+          "__rl": true,
+          "value": "53dc6a95e86845a4baf1da1691dbc581",
+          "mode": "id"
+        },
+        "title": "={{ $json.meeting_title }}",
+        "propertiesUi": {
+          "propertyValues": [
+            {
+              "key": "Date|date",
+              "type": "date",
+              "includeTime": false,
+              "date": "={{ $json.date }}"
+            },
+            {
+              "key": "Status|select",
+              "type": "select",
+              "selectValue": "Draft"
+            },
+            {
+              "key": "Action Items Count|number",
+              "type": "number",
+              "numberValue": "={{ $json.action_items_count }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "24f9ab34-d602-4617-a09d-b8113671e7ec",
+      "name": "Create Notion Page",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2.2,
+      "position": [
+        1648,
+        -256
+      ]
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "C0B7S81CT8B"
+        },
+        "text": "=*Meeting Notes: {{ $('Parse AI Response').item.json.meeting_title }}*\n\n{{ $('Parse AI Response').item.json.executive_summary }}\n\n*Action Items:* {{ $('Parse AI Response').item.json.action_items_count }} item\n*Peserta:* {{ $('Parse AI Response').item.json.participants.join(', ') }}\n\nLihat notulen: {{ $('Create Notion Page').item.json.url }}",
+        "otherOptions": {}
+      },
+      "id": "3a704472-82c2-4e4f-a19f-b3a1f77a8bf1",
+      "name": "Post to Slack",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.5,
+      "position": [
+        2432,
+        -256
+      ],
+      "webhookId": "d1a398d8-148e-4e6c-b298-0adbbaff30b3"
+    },
+    {
+      "parameters": {
+        "messages": {
+          "values": [
+            {
+              "content": "=Kamu adalah classifier konten audio/video. Analisis transkrip berikut dan tentukan kategori konten serta panduan pemrosesan untuk pipeline.\n\nTRANSKRIP:\n\"\"\"\n{{ $json.text }}\n\"\"\"\n\nNAMA FILE/MEETING: {{ $('Upload Meeting Recording').item.json.meeting_name || 'Tidak disebutkan' }}\n\nTENTUKAN content_class \u00e2\u20ac\u201d pilih SATU:\n- \"meeting\": diskusi grup (2+ orang) berorientasi keputusan, action items, atau agenda kerja\n- \"one_on_one\": percakapan PRIVAT 2 orang (interview kerja, konseling, pitching klien, performance review, mentoring)\n- \"non_meeting\": konten untuk dikonsumsi atau dipelajari (podcast, YouTube, kuliah, filsafat, sains, komedi stand-up)\n\nEDGE CASE PENTING \u00e2\u20ac\u201d format 2 orang:\n- Ada sinyal audiens (intro show, sebut \"penonton/pendengar\", promosi channel, referensi subscriber) \u00e2\u2020\u2019 \"non_meeting\" bukan \"one_on_one\"\n- Bersifat privat, evaluatif, tidak ada referensi audiens eksternal \u00e2\u2020\u2019 \"one_on_one\"\n\nTIPE SPESIFIK:\n- meeting: standup | client_meeting | retrospective | planning | brainstorm | all_hands\n- one_on_one: interview | counseling | client_pitch | performance_review | mentoring\n- non_meeting: philosophy | science | educational_interview | podcast | lecture | comedy | casual_discussion\n\nSHOULD_PROCESS = false HANYA jika transkrip kosong, noise murni, atau sama sekali tidak bisa dipahami.\n\nKEMBALIKAN JSON MURNI tanpa markdown fence, tanpa teks lain:\n{\n  \"content_class\": \"meeting\",\n  \"meeting_type\": \"standup|client_meeting|retrospective|planning|brainstorm|all_hands|null\",\n  \"session_type\": \"interview|counseling|client_pitch|performance_review|mentoring|null\",\n  \"content_category\": \"philosophy|science|educational_interview|podcast|lecture|comedy|casual_discussion|null\",\n  \"content_subcategory\": \"string|null\",\n  \"should_process\": true,\n  \"confidence\": 0.95,\n  \"ambiguous\": false,\n  \"ambiguity_reason\": null,\n  \"focus_instruction\": \"1-2 kalimat panduan spesifik untuk node ekstraksi berikutnya\",\n  \"key_focus\": [\"aspek1\", \"aspek2\"],\n  \"notion_db\": \"meeting|one_on_one|content\",\n  \"language\": \"id\"\n}"
+            }
+          ]
+        },
+        "options": {
+          "hideThinking": true,
+          "maxTokens": 8000,
+          "temperature": 0.1
+        }
+      },
+      "id": "a2cd9c4e-6ed2-482d-99d7-16b01ec05d8b",
+      "name": "Classify & Plan",
+      "type": "@n8n/n8n-nodes-langchain.minimax",
+      "typeVersion": 1,
+      "position": [
+        448,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first();\n\n// MiniMax mengembalikan output di field 'content'\nlet raw = item.json.content || item.json.text || item.json.message || JSON.stringify(item.json);\n\n// Strip markdown fences\nraw = String(raw).replace(/^```json\\s*/i, '').replace(/```\\s*$/g, '').trim();\n\nlet parsed;\ntry {\n  parsed = JSON.parse(raw);\n} catch(e) {\n  const match = raw.match(/\\{[\\s\\S]*\\}/);\n  if (match) {\n    try { parsed = JSON.parse(match[0]); }\n    catch(e2) { throw new Error('Gagal parse classifier JSON: ' + raw.substring(0, 200)); }\n  } else {\n    throw new Error('Tidak ada JSON di output classifier: ' + raw.substring(0, 200));\n  }\n}\n\n// Validasi dan default values\nconst validClasses = ['meeting', 'one_on_one', 'non_meeting'];\nparsed.content_class = validClasses.includes(parsed.content_class) ? parsed.content_class : 'meeting';\nparsed.should_process = parsed.should_process !== false;\nparsed.confidence = typeof parsed.confidence === 'number' ? Math.min(1, Math.max(0, parsed.confidence)) : 0.5;\nparsed.ambiguous = parsed.ambiguous === true || parsed.confidence < 0.75;\nparsed.ambiguity_reason = parsed.ambiguity_reason || null;\nparsed.focus_instruction = parsed.focus_instruction || '';\nparsed.key_focus = Array.isArray(parsed.key_focus) ? parsed.key_focus : [];\nparsed.notion_db = parsed.notion_db || 'meeting';\nparsed.language = parsed.language || 'id';\n\n// Simpan transcript dari Whisper untuk node Extract\nparsed.transcript = $('Merge Transcripts').first().json.text || '';\n\nreturn [{ json: parsed }];"
+      },
+      "id": "b4f8dbe7-f59b-4bae-b239-255b1948709d",
+      "name": "Parse Classifier Output",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        672,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "r0c0",
+                    "leftValue": "={{ $json.should_process }}",
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "false",
+                      "singleValue": true
+                    },
+                    "rightValue": ""
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "Tidak Bisa Diproses"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "r1c0",
+                    "leftValue": "={{ $json.content_class }}",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "rightValue": "meeting"
+                  },
+                  {
+                    "id": "r1c1",
+                    "leftValue": "={{ $json.ambiguous }}",
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "false",
+                      "singleValue": true
+                    },
+                    "rightValue": ""
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "Meeting"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "r2c0",
+                    "leftValue": "={{ $json.content_class }}",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "rightValue": "one_on_one"
+                  },
+                  {
+                    "id": "r2c1",
+                    "leftValue": "={{ $json.ambiguous }}",
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "false",
+                      "singleValue": true
+                    },
+                    "rightValue": ""
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "One on One"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "r3c0",
+                    "leftValue": "={{ $json.content_class }}",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "rightValue": "non_meeting"
+                  },
+                  {
+                    "id": "r3c1",
+                    "leftValue": "={{ $json.ambiguous }}",
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "false",
+                      "singleValue": true
+                    },
+                    "rightValue": ""
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "Non Meeting"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra",
+          "renameFallbackOutput": "Perlu Review Manual"
+        }
+      },
+      "id": "d4991b7c-0aee-4512-abfe-c83f4034bd30",
+      "name": "Router",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        896,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "C0B7S81CT8B"
+        },
+        "text": "=\u00e2\u0161\u00a0\u00ef\u00b8\udc8f *Review Manual Diperlukan*\n\nPipeline tidak bisa menentukan jenis konten secara otomatis.\n\n*Confidence:* {{ $json.confidence }}\n*Alasan:* {{ $json.ambiguity_reason || 'Sinyal tidak jelas' }}\n*Class terdeteksi:* {{ $json.content_class }}\n\nSilakan buka n8n dan proses manual.",
+        "otherOptions": {}
+      },
+      "id": "69af3668-8649-4846-96a0-c4b692283996",
+      "name": "Notify - Human Review",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.5,
+      "position": [
+        1120,
+        304
+      ],
+      "webhookId": "9f263d57-a4a3-44b6-98ae-f7ca392eccd4"
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "C0B7S81CT8B"
+        },
+        "text": "=\u00e2\udc9d\u0152 *File Tidak Bisa Diproses*\n\nFile rekaman yang diupload tidak mengandung konten yang bisa diproses.\n\nAlasan: Transkrip kosong atau audio tidak bisa dipahami. Silakan upload file yang valid.",
+        "otherOptions": {}
+      },
+      "id": "d4ddfbee-8352-4002-ba49-0a1705d9f9d5",
+      "name": "Notify - Tidak Bisa Diproses",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.5,
+      "position": [
+        1120,
+        560
+      ],
+      "webhookId": "d93584c5-b203-40b5-bfe1-348382afcbb0"
+    },
+    {
+      "parameters": {
+        "messages": {
+          "values": [
+            {
+              "content": "=Kamu adalah asisten notulen untuk sesi percakapan personal. {{ $json.focus_instruction }}\n\nDari transkrip berikut, ekstrak informasi dalam format JSON murni (tanpa teks lain, tanpa markdown fence).\n\nJENIS SESI: {{ $json.session_type || 'one_on_one' }}\nFOKUS EKSTRAKSI: {{ $json.key_focus.join(', ') }}\n\nSKEMA YANG HARUS DIKEMBALIKAN:\n{ \"content_title\": \"judul sesi (misal: Interview - Nama, Konseling - Topik)\", \"session_type\": \"interview|counseling|client_pitch|performance_review|mentoring\", \"date\": \"YYYY-MM-DD atau null\", \"person_a\": { \"name\": \"nama\", \"role\": \"peran (Interviewer/Konselor/Host/dll)\" }, \"person_b\": { \"name\": \"nama\", \"role\": \"peran (Kandidat/Klien/Narasumber/dll)\" }, \"executive_summary\": \"3-4 kalimat ringkasan objektif sesi\", \"key_topics\": [\"topik yang dibahas\"], \"highlights\": [\"momen atau jawaban paling signifikan dari sesi\"], \"assessment\": \"evaluasi keseluruhan berdasarkan transkrip saja (1-2 kalimat)\", \"action_items\": [{\"task\": \"string\", \"owner\": \"string|null\", \"due_date\": \"string|null\"}], \"follow_up\": \"rekomendasi langkah berikutnya atau null\" }\n\nATURAN:\n- person_a: yang lebih banyak bertanya atau memimpin sesi.\n- person_b: yang lebih banyak merespons atau dinilai.\n- highlights: pernyataan/jawaban paling bermakna dari person_b.\n- assessment: objektif, tidak menghakimi, berbasis transkrip saja. Jangan tambah opini.\n- action_items: hanya jika ada komitmen konkret yang disebut. Kosongkan array jika tidak ada.\n- Untuk date: {{ $now.toFormat('yyyy-MM-dd') }} jika tidak disebutkan.\n- Bahasa output: {{ $json.language }}\n\nTRANSKRIP:\n\"\"\"\n{{ $json.transcript }}\n\"\"\""
+            }
+          ]
+        },
+        "options": {
+          "hideThinking": true,
+          "maxTokens": 16000,
+          "temperature": 0.1
+        }
+      },
+      "id": "e136023a-71a8-486a-b178-5a21f31d0dc2",
+      "name": "Extract - One on One",
+      "type": "@n8n/n8n-nodes-langchain.minimax",
+      "typeVersion": 1,
+      "position": [
+        1120,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "messages": {
+          "values": [
+            {
+              "content": "=Kamu adalah asisten ringkasan konten. {{ $json.focus_instruction }}\n\nDari transkrip berikut, buat catatan konten dalam format JSON murni (tanpa teks lain, tanpa markdown fence).\n\nKATEGORI KONTEN: {{ $json.content_category || 'general' }}\nFOKUS: {{ $json.key_focus.join(', ') }}\n\nSKEMA YANG HARUS DIKEMBALIKAN:\n{ \"content_title\": \"judul konten yang deskriptif\", \"content_category\": \"philosophy|science|educational_interview|podcast|lecture|comedy|casual_discussion\", \"content_subcategory\": \"string atau null\", \"topic\": \"topik utama yang dibahas (misal: Free Will, Teori Evolusi) atau null\", \"sub_topic\": \"aspek spesifik dalam topik utama atau null\", \"date\": \"YYYY-MM-DD atau null\", \"participants\": [\"pembicara yang muncul di transkrip\"], \"moderator\": \"nama host, moderator, atau channel jika disebutkan atau null\", \"question\": \"pertanyaan atau isu sentral yang menjadi landasan pembahasan atau null\", \"executive_summary\": \"3-4 kalimat ringkasan keseluruhan konten\", \"detailed_notes\": { \"main_themes\": [\"tema utama yang dibahas\"], \"key_points\": [\"poin penting, argumen, insight, atau fakta utama\"], \"notable_quotes\": [\"kutipan menarik langsung dari transkrip\"], \"open_questions\": [\"pertanyaan yang tidak dijawab tuntas\"] }, \"follow_up\": \"rekomendasi konten lanjutan atau null\" }\n\nATURAN:\n- topic: konsep atau tema besar yang dijelajahi, bukan judul konten.\n- sub_topic: aspek atau angle spesifik dari topic tersebut.\n- moderator: host/moderator/channel yang memimpin konten; null jika tidak jelas.\n- question: pertanyaan atau masalah sentral yang mendorong diskusi; null jika tidak ada.\n- key_points: argumen (filsafat), temuan (sains), insight (podcast), bit utama (comedy).\n- Jangan tambahkan informasi yang tidak ada di transkrip.\n- notable_quotes: kutip langsung dari transkrip, jangan parafrase.\n- open_questions: kosong array [] jika tidak ada.\n- Untuk date: {{ $now.toFormat('yyyy-MM-dd') }} jika tidak disebutkan.\n- Bahasa output: {{ $json.language }}\n\nTRANSKRIP:\n\"\"\"\n{{ $json.transcript }}\n\"\"\""
+            }
+          ]
+        },
+        "options": {
+          "hideThinking": true,
+          "maxTokens": 16000,
+          "temperature": 0.1
+        }
+      },
+      "id": "e26e40aa-1d55-4cff-a8a6-cab8a4812a1e",
+      "name": "Extract - Non Meeting",
+      "type": "@n8n/n8n-nodes-langchain.minimax",
+      "typeVersion": 1,
+      "position": [
+        1120,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first();\nlet raw = item.json.content || item.json.text || item.json.message || JSON.stringify(item.json);\nraw = String(raw).replace(/^```json\\s*/i, '').replace(/```\\s*$/g, '').trim();\n\nlet parsed;\ntry {\n  parsed = JSON.parse(raw);\n} catch(e) {\n  const match = raw.match(/\\{[\\s\\S]*\\}/);\n  if (match) {\n    try { parsed = JSON.parse(match[0]); }\n    catch(e2) { throw new Error('Gagal parse JSON Non-Meeting: ' + raw.substring(0, 300)); }\n  } else {\n    throw new Error('Tidak ada JSON di output Non-Meeting: ' + raw.substring(0, 300));\n  }\n}\n\nparsed.content_title = parsed.content_title || 'Untitled Content';\nparsed.content_category = parsed.content_category || 'casual_discussion';\nparsed.content_subcategory = parsed.content_subcategory || null;\nparsed.topic = parsed.topic || null;\nparsed.sub_topic = parsed.sub_topic || null;\nparsed.date = parsed.date || new Date().toISOString().split('T')[0];\nparsed.participants = Array.isArray(parsed.participants) ? parsed.participants : [];\nparsed.moderator = parsed.moderator || null;\nparsed.question = parsed.question || null;\nparsed.executive_summary = parsed.executive_summary || '';\nparsed.detailed_notes = parsed.detailed_notes || {};\nparsed.detailed_notes.main_themes = Array.isArray(parsed.detailed_notes.main_themes) ? parsed.detailed_notes.main_themes : [];\nparsed.detailed_notes.key_points = Array.isArray(parsed.detailed_notes.key_points) ? parsed.detailed_notes.key_points : [];\nparsed.detailed_notes.notable_quotes = Array.isArray(parsed.detailed_notes.notable_quotes) ? parsed.detailed_notes.notable_quotes : [];\nparsed.detailed_notes.open_questions = Array.isArray(parsed.detailed_notes.open_questions) ? parsed.detailed_notes.open_questions : [];\nparsed.follow_up = parsed.follow_up || null;\nparsed.key_point = parsed.detailed_notes.key_points.length > 0 ? parsed.detailed_notes.key_points[0] : null;\nparsed.summarize = parsed.executive_summary;\n\nreturn [{ json: parsed }];"
+      },
+      "id": "d78cfd16-7cd7-49bb-a9b2-e902acaf4e8d",
+      "name": "Parse - Non Meeting",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1392,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "databaseId": {
+          "__rl": true,
+          "value": "f6c7e601-8a22-4255-8f40-7b37c0c72b82",
+          "mode": "id"
+        },
+        "title": "={{ $json.content_title }}",
+        "propertiesUi": {
+          "propertyValues": [
+            {
+              "key": "Date|date",
+              "type": "date",
+              "includeTime": false,
+              "date": "={{ $json.date }}"
+            },
+            {
+              "key": "Category|select",
+              "type": "select",
+              "selectValue": "={{ $json.content_category }}"
+            },
+            {
+              "key": "Subcategory|rich_text",
+              "type": "rich_text",
+              "richText": false,
+              "textContent": "={{ $json.content_subcategory || '' }}"
+            },
+            {
+              "key": "Moderator|rich_text",
+              "type": "rich_text",
+              "richText": false,
+              "textContent": "={{ $json.moderator || '' }}"
+            },
+            {
+              "key": "Question|rich_text",
+              "type": "rich_text",
+              "richText": false,
+              "textContent": "={{ $json.question || '' }}"
+            },
+            {
+              "key": "Topic|rich_text",
+              "type": "rich_text",
+              "richText": false,
+              "textContent": "={{ $json.topic || '' }}"
+            },
+            {
+              "key": "Sub Topic|rich_text",
+              "type": "rich_text",
+              "richText": false,
+              "textContent": "={{ $json.sub_topic || '' }}"
+            },
+            {
+              "key": "Key Point|rich_text",
+              "type": "rich_text",
+              "richText": false,
+              "textContent": "={{ $json.key_point || '' }}"
+            },
+            {
+              "key": "Summarize|rich_text",
+              "type": "rich_text",
+              "richText": false,
+              "textContent": "={{ $json.summarize || '' }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "42104e9d-79af-4077-87dc-5bd7ba7b94db",
+      "name": "Create Notion Page - Non Meeting",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2.2,
+      "position": [
+        1648,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "C0B7S81CT8B"
+        },
+        "text": "=*Content Notes: {{ $('Parse - Non Meeting').item.json.content_title }}*\nKategori: {{ $('Parse - Non Meeting').item.json.content_category }}\nTopik: {{ $('Parse - Non Meeting').item.json.topic || '-' }}\n\n{{ $('Parse - Non Meeting').item.json.executive_summary }}\n\nLihat catatan: {{ $('Create Notion Page - Non Meeting').item.json.url }}",
+        "otherOptions": {}
+      },
+      "id": "52684c6a-2812-4665-98b5-a44d22b2e573",
+      "name": "Post to Slack - Non Meeting",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.5,
+      "position": [
+        2432,
+        160
+      ],
+      "webhookId": "89138dd6-4280-41b1-bc37-7f9e9860458c"
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first();\nlet raw = item.json.content || item.json.text || item.json.message || JSON.stringify(item.json);\nraw = String(raw).replace(/^```json\\s*/i, '').replace(/```\\s*$/g, '').trim();\n\nlet parsed;\ntry {\n  parsed = JSON.parse(raw);\n} catch(e) {\n  const match = raw.match(/\\{[\\s\\S]*\\}/);\n  if (match) {\n    try { parsed = JSON.parse(match[0]); }\n    catch(e2) { throw new Error('Gagal parse JSON One-on-One: ' + raw.substring(0, 300)); }\n  } else {\n    throw new Error('Tidak ada JSON di output One-on-One: ' + raw.substring(0, 300));\n  }\n}\n\nparsed.content_title = parsed.content_title || 'Untitled Session';\nparsed.session_type = parsed.session_type || 'interview';\nparsed.date = parsed.date || new Date().toISOString().split('T')[0];\nparsed.person_a = parsed.person_a || { name: 'Person A', role: '' };\nparsed.person_b = parsed.person_b || { name: 'Person B', role: '' };\nparsed.executive_summary = parsed.executive_summary || '';\nparsed.key_topics = Array.isArray(parsed.key_topics) ? parsed.key_topics : [];\nparsed.highlights = Array.isArray(parsed.highlights) ? parsed.highlights : [];\nparsed.assessment = parsed.assessment || '';\nparsed.action_items = Array.isArray(parsed.action_items) ? parsed.action_items : [];\nparsed.follow_up = parsed.follow_up || null;\nparsed.action_items_count = parsed.action_items.length;\nparsed.has_action_items = parsed.action_items.length > 0;\nparsed.follow_up_required = parsed.follow_up !== null && parsed.follow_up !== '';\nparsed.person_a_display = parsed.person_a.role ? parsed.person_a.name + ' (' + parsed.person_a.role + ')' : parsed.person_a.name;\nparsed.person_b_display = parsed.person_b.role ? parsed.person_b.name + ' (' + parsed.person_b.role + ')' : parsed.person_b.name;\n\nreturn [{ json: parsed }];"
+      },
+      "id": "96c21db8-eadf-425b-8081-578e239a46cd",
+      "name": "Parse - One on One",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1392,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "databaseId": {
+          "__rl": true,
+          "value": "37387f7d-deee-4031-9a4b-a08ed79231fb",
+          "mode": "id"
+        },
+        "title": "={{ $json.content_title }}",
+        "propertiesUi": {
+          "propertyValues": [
+            {
+              "key": "Date|date",
+              "type": "date",
+              "includeTime": false,
+              "date": "={{ $json.date }}"
+            },
+            {
+              "key": "Session Type|select",
+              "type": "select",
+              "selectValue": "={{ $json.session_type || '' }}"
+            },
+            {
+              "key": "Person A|rich_text",
+              "type": "rich_text",
+              "richText": false,
+              "textContent": "={{ $json.person_a_display || '' }}"
+            },
+            {
+              "key": "Person B|rich_text",
+              "type": "rich_text",
+              "richText": false,
+              "textContent": "={{ $json.person_b_display || '' }}"
+            },
+            {
+              "key": "Action Items Count|number",
+              "type": "number",
+              "numberValue": "={{ $json.action_items_count }}"
+            },
+            {
+              "key": "Has Action Items|checkbox",
+              "type": "checkbox",
+              "checkboxValue": "={{ $json.has_action_items }}"
+            },
+            {
+              "key": "Follow-up Required|checkbox",
+              "type": "checkbox",
+              "checkboxValue": "={{ $json.follow_up_required }}"
+            },
+            {
+              "key": "Status|select",
+              "type": "select",
+              "selectValue": "Draft"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "b74296fa-72d7-4769-94dd-a89d1240364c",
+      "name": "Create Notion Page - One on One",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2.2,
+      "position": [
+        1648,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "C0B7S81CT8B"
+        },
+        "text": "=*Session Notes: {{ $('Parse - One on One').item.json.content_title }}*\nJenis: {{ $('Parse - One on One').item.json.session_type }}\n{{ $('Parse - One on One').item.json.person_a_display }} \u00c3\u2014 {{ $('Parse - One on One').item.json.person_b_display }}\n\n{{ $('Parse - One on One').item.json.executive_summary }}\n\n*Action Items:* {{ $('Parse - One on One').item.json.action_items_count }} item\nLihat catatan: {{ $('Create Notion Page - One on One').item.json.url }}",
+        "otherOptions": {}
+      },
+      "id": "07e4002b-be56-4715-8c65-d070cd530be2",
+      "name": "Post to Slack - One on One",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.5,
+      "position": [
+        2432,
+        0
+      ],
+      "webhookId": "c2b664e9-b358-490f-a312-cad94a98afbd"
+    },
+    {
+      "parameters": {
+        "jsCode": "const p=$('Parse AI Response').item.json;\nconst pageId=$input.first().json.id;\nconst tr=$('Parse Classifier Output').item.json.transcript||'';\nconst h2=t=>({object:'block',type:'heading_2',heading_2:{rich_text:[{type:'text',text:{content:t.slice(0,2000)}}]}});\nconst para=t=>{if(!t)return[];const r=[];for(let i=0;i<t.length;i+=1900)r.push({object:'block',type:'paragraph',paragraph:{rich_text:[{type:'text',text:{content:t.slice(i,i+1900)}}]}});return r;};\nconst bullet=t=>({object:'block',type:'bulleted_list_item',bulleted_list_item:{rich_text:[{type:'text',text:{content:String(t).slice(0,2000)}}]}});\nconst todo=t=>({object:'block',type:'to_do',to_do:{rich_text:[{type:'text',text:{content:String(t).slice(0,2000)}}],checked:false}});\nconst div=()=>({object:'block',type:'divider',divider:{}});\nconst tog=(t,ch)=>({object:'block',type:'toggle',toggle:{rich_text:[{type:'text',text:{content:t.slice(0,2000)}}],children:ch.slice(0,50)}});\nconst b=[];\nb.push(h2('Ringkasan Eksekutif'),...para(p.executive_summary||''),div());\nif(p.key_decisions&&p.key_decisions.length){b.push(h2('Keputusan Utama'));p.key_decisions.forEach(d=>b.push(bullet(d)));b.push(div());}\nif(p.action_items&&p.action_items.length){b.push(h2('Action Items ('+p.action_items.length+')'));p.action_items.forEach(a=>{const t=[a.task||''];if(a.owner)t.push('\u00e2\u2020\u2019 '+a.owner);if(a.due_date)t.push('('+a.due_date+')');b.push(todo(t.join(' ')));});b.push(div());}\nif(p.discussion_topics&&p.discussion_topics.length){b.push(h2('Topik Pembahasan'));p.discussion_topics.forEach(dt=>{const ch=para(dt.summary||'-');b.push(tog(dt.topic||'Topik',ch.length?ch:[{object:'block',type:'paragraph',paragraph:{rich_text:[{type:'text',text:{content:'-'}}]}}]));});b.push(div());}\nif(p.open_questions&&p.open_questions.length){b.push(h2('Pertanyaan Terbuka'));p.open_questions.forEach(q=>b.push(bullet(q)));b.push(div());}\nif(tr){const tc=[];for(let i=0;i<tr.length;i+=1900)tc.push({object:'block',type:'paragraph',paragraph:{rich_text:[{type:'text',text:{content:tr.slice(i,i+1900)}}]}});b.push(tog('\u00f0\u0178\u201c\u201e Transkrip Lengkap',tc.slice(0,50)));}\nreturn[{json:{page_id:pageId,blocks:b.slice(0,95)}}];"
+      },
+      "id": "d2e7aea4-9396-453d-b255-eec88c9e5481",
+      "name": "Format Blocks - Meeting",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1904,
+        -256
+      ]
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://api.notion.com/v1/blocks/{{ $json.page_id }}/children",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "notionApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Notion-Version",
+              "value": "2022-06-28"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { children: $json.blocks } }}",
+        "options": {}
+      },
+      "id": "785535e8-8529-4293-9fed-0ab2eb57807a",
+      "name": "Append Blocks - Meeting",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        2160,
+        -256
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const p=$('Parse - One on One').item.json;\nconst pageId=$input.first().json.id;\nconst tr=$('Parse Classifier Output').item.json.transcript||'';\nconst h2=t=>({object:'block',type:'heading_2',heading_2:{rich_text:[{type:'text',text:{content:t.slice(0,2000)}}]}});\nconst para=t=>{if(!t)return[];const r=[];for(let i=0;i<t.length;i+=1900)r.push({object:'block',type:'paragraph',paragraph:{rich_text:[{type:'text',text:{content:t.slice(i,i+1900)}}]}});return r;};\nconst bullet=t=>({object:'block',type:'bulleted_list_item',bulleted_list_item:{rich_text:[{type:'text',text:{content:String(t).slice(0,2000)}}]}});\nconst todo=t=>({object:'block',type:'to_do',to_do:{rich_text:[{type:'text',text:{content:String(t).slice(0,2000)}}],checked:false}});\nconst div=()=>({object:'block',type:'divider',divider:{}});\nconst callout=(t,e)=>({object:'block',type:'callout',callout:{rich_text:[{type:'text',text:{content:String(t).slice(0,2000)}}],icon:{type:'emoji',emoji:e||'\u00f0\u0178\u2018\u00a5'}}});\nconst tog=(t,ch)=>({object:'block',type:'toggle',toggle:{rich_text:[{type:'text',text:{content:t.slice(0,2000)}}],children:ch.slice(0,50)}});\nconst b=[];\nb.push(callout((p.person_a_display||'Person A')+' \u00c3\u2014 '+(p.person_b_display||'Person B')+' | Sesi: '+(p.session_type||'-'),'\u00f0\u0178\u2018\u00a5'));\nb.push(h2('Ringkasan'),...para(p.executive_summary||''),div());\nif(p.key_topics&&p.key_topics.length){b.push(h2('Topik Dibahas'));p.key_topics.forEach(t=>b.push(bullet(t)));b.push(div());}\nif(p.highlights&&p.highlights.length){b.push(h2('Highlights'));p.highlights.forEach(h=>b.push(bullet(h)));b.push(div());}\nif(p.assessment){b.push(h2('Assessment'),...para(p.assessment),div());}\nif(p.action_items&&p.action_items.length){b.push(h2('Action Items ('+p.action_items.length+')'));p.action_items.forEach(a=>{const t=[a.task||''];if(a.owner)t.push('\u00e2\u2020\u2019 '+a.owner);if(a.due_date)t.push('('+a.due_date+')');b.push(todo(t.join(' ')));});b.push(div());}\nif(p.follow_up){b.push(h2('Follow-up'),...para(p.follow_up),div());}\nif(tr){const tc=[];for(let i=0;i<tr.length;i+=1900)tc.push({object:'block',type:'paragraph',paragraph:{rich_text:[{type:'text',text:{content:tr.slice(i,i+1900)}}]}});b.push(tog('\u00f0\u0178\u201c\u201e Transkrip Lengkap',tc.slice(0,50)));}\nreturn[{json:{page_id:pageId,blocks:b.slice(0,95)}}];"
+      },
+      "id": "2830988c-1bbe-4eeb-83ab-a96738187a22",
+      "name": "Format Blocks - One on One",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1904,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://api.notion.com/v1/blocks/{{ $json.page_id }}/children",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "notionApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Notion-Version",
+              "value": "2022-06-28"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { children: $json.blocks } }}",
+        "options": {}
+      },
+      "id": "927bd104-ae63-4024-83cc-0d0af2f21ba4",
+      "name": "Append Blocks - One on One",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        2160,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const p=$('Parse - Non Meeting').item.json;\nconst pageId=$input.first().json.id;\nconst tr=$('Parse Classifier Output').item.json.transcript||'';\nconst dn=p.detailed_notes||{};\nconst h2=t=>({object:'block',type:'heading_2',heading_2:{rich_text:[{type:'text',text:{content:t.slice(0,2000)}}]}});\nconst para=t=>{if(!t)return[];const r=[];for(let i=0;i<t.length;i+=1900)r.push({object:'block',type:'paragraph',paragraph:{rich_text:[{type:'text',text:{content:t.slice(i,i+1900)}}]}});return r;};\nconst bullet=t=>({object:'block',type:'bulleted_list_item',bulleted_list_item:{rich_text:[{type:'text',text:{content:String(t).slice(0,2000)}}]}});\nconst numbered=t=>({object:'block',type:'numbered_list_item',numbered_list_item:{rich_text:[{type:'text',text:{content:String(t).slice(0,2000)}}]}});\nconst div=()=>({object:'block',type:'divider',divider:{}});\nconst qt=t=>({object:'block',type:'quote',quote:{rich_text:[{type:'text',text:{content:String(t).slice(0,2000)}}]}});\nconst callout=(t,e)=>({object:'block',type:'callout',callout:{rich_text:[{type:'text',text:{content:String(t).slice(0,2000)}}],icon:{type:'emoji',emoji:e||'\u00f0\u0178\u201c\u0152'}}});\nconst tog=(t,ch)=>({object:'block',type:'toggle',toggle:{rich_text:[{type:'text',text:{content:t.slice(0,2000)}}],children:ch.slice(0,50)}});\nconst b=[];\nconst info=[];if(p.topic)info.push('Topik: '+p.topic);if(p.sub_topic)info.push('Sub Topik: '+p.sub_topic);if(p.moderator)info.push('Moderator: '+p.moderator);if(p.content_category)info.push('Kategori: '+p.content_category);\nif(info.length)b.push(callout(info.join(' | '),'\u00f0\u0178\u201c\u0152'));\nif(p.question)b.push(callout(p.question,'\u00e2\udc9d\u201c'));\nb.push(div());\nb.push(h2('Ringkasan'),...para(p.executive_summary||''),div());\nif(dn.main_themes&&dn.main_themes.length){b.push(h2('Tema Utama'));dn.main_themes.forEach(t=>b.push(bullet(t)));b.push(div());}\nif(dn.key_points&&dn.key_points.length){b.push(h2('Poin Penting'));dn.key_points.forEach(k=>b.push(numbered(k)));b.push(div());}\nif(dn.notable_quotes&&dn.notable_quotes.length){b.push(h2('Kutipan Menarik'));dn.notable_quotes.forEach(q=>b.push(qt(q)));b.push(div());}\nif(dn.open_questions&&dn.open_questions.length){b.push(h2('Pertanyaan Terbuka'));dn.open_questions.forEach(q=>b.push(bullet(q)));b.push(div());}\nif(tr){const tc=[];for(let i=0;i<tr.length;i+=1900)tc.push({object:'block',type:'paragraph',paragraph:{rich_text:[{type:'text',text:{content:tr.slice(i,i+1900)}}]}});b.push(tog('\u00f0\u0178\u201c\u201e Transkrip Lengkap',tc.slice(0,50)));}\nreturn[{json:{page_id:pageId,blocks:b.slice(0,95)}}];"
+      },
+      "id": "c0f2cc92-aa15-499a-9614-d4b8313de4ee",
+      "name": "Format Blocks - Non Meeting",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1904,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://api.notion.com/v1/blocks/{{ $json.page_id }}/children",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "notionApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Notion-Version",
+              "value": "2022-06-28"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { children: $json.blocks } }}",
+        "options": {}
+      },
+      "id": "fcad4d0d-6092-43b5-8e4d-204c60bc77c2",
+      "name": "Append Blocks - Non Meeting",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        2160,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const path = require('path');\nconst fs = require('fs');\nconst os = require('os');\nconst { execSync } = require('child_process');\n\n// --- Konfigurasi ---\n// 5 menit per chunk => Whisper selesai ~40-50s => aman di bawah 120s proxy timeout\n// HTTP Request node n8n menjalankan semua item secara paralel (Promise.allSettled),\n// sehingga N chunk berjalan bersamaan. Dengan chunk 5 menit masing-masing selesai\n// jauh sebelum timeout, ini aman untuk audio hingga 4 jam (MAX_CHUNKS=30 x 5 menit).\nconst CHUNK_SECONDS = 300;  // 5 menit per chunk\nconst MAX_CHUNKS    = 30;   // max ~2.5 jam audio\nconst BITRATE       = '32k'; // naik dari 16k: akurasi lebih baik, ukuran ~2x (5 menit ~1.2 MB)\n\nconst item = $input.first();\nconst binaryKey = 'recording';\nif (!item.binary || !item.binary[binaryKey]) {\n  throw new Error('No recording binary data found');\n}\nconst binaryData = item.binary[binaryKey];\nconst origName   = binaryData.fileName || 'recording.mp4';\nconst ts         = Date.now();\n\n// Direktori unik per eksekusi \u00e2\u20ac\u201d terisolasi\nconst tmpDir = path.join(os.tmpdir(), 'n8n_mtg_' + ts).replace(/\\\\/g, '/');\nfs.mkdirSync(tmpDir, { recursive: true });\n\nlet inputFile;\nconst out = [];\n\ntry {\n  if (binaryData.id && String(binaryData.id).startsWith('filesystem-v2:')) {\n    // File sudah di disk (filesystem binary mode) \u00e2\u20ac\u201d akses langsung, 0 alokasi RAM ekstra\n    const rel = String(binaryData.id).replace('filesystem-v2:', '');\n    inputFile = path.join(os.homedir(), '.n8n', 'binaryData', rel).replace(/\\\\/g, '/');\n  } else {\n    // In-memory base64 \u00e2\u20ac\u201d decode dan tulis ke tmpDir\n    // MEMORY NOTE: decode ~1.33x ukuran base64; untuk 1 jam video ~50-150 MB sementara.\n    // Aktifkan N8N_DEFAULT_BINARY_DATA_MODE=filesystem untuk menghindari ini pada file besar.\n    const buffer = Buffer.from(binaryData.data, 'base64');\n    const ext = path.extname(origName) || '.mp4';\n    inputFile = path.join(tmpDir, 'input' + ext).replace(/\\\\/g, '/');\n    fs.writeFileSync(inputFile, buffer);\n  }\n\n  const fileSizeMB  = (fs.statSync(inputFile).size / 1024 / 1024).toFixed(2);\n  const outPattern  = path.join(tmpDir, 'chunk_%03d.mp3').replace(/\\\\/g, '/');\n\n  // Satu pass: konversi + segmentasi\n  execSync(\n    'ffmpeg -i \"' + inputFile + '\" -vn -ar 16000 -ac 1 -b:a ' + BITRATE +\n    ' -f segment -segment_time ' + CHUNK_SECONDS + ' \"' + outPattern + '\" -y',\n    { timeout: 600000, stdio: 'pipe' }\n  );\n\n  const chunkFiles = fs.readdirSync(tmpDir)\n    .filter(f => f.startsWith('chunk_') && f.endsWith('.mp3'))\n    .sort();\n\n  if (chunkFiles.length === 0) throw new Error('ffmpeg menghasilkan 0 chunk');\n  if (chunkFiles.length > MAX_CHUNKS) {\n    throw new Error('Audio terlalu panjang: ' + chunkFiles.length + ' chunk, batas ' +\n      MAX_CHUNKS + ' (~' + (MAX_CHUNKS * CHUNK_SECONDS / 60).toFixed(0) + ' menit max)');\n  }\n\n  const baseName = origName.replace(/\\.[^/.]+$/, '');\n  chunkFiles.forEach((fname, idx) => {\n    const buf = fs.readFileSync(path.join(tmpDir, fname).replace(/\\\\/g, '/'));\n    out.push({\n      json: {\n        meeting_name:       item.json.meeting_name || '',\n        originalFileName:   origName,\n        originalFileSizeMB: parseFloat(fileSizeMB),\n        chunk_index:        idx,\n        total_chunks:       chunkFiles.length\n      },\n      binary: {\n        recording: {\n          data:     buf.toString('base64'),\n          mimeType: 'audio/mpeg',\n          fileName: baseName + '_chunk' + String(idx).padStart(3, '0') + '.mp3',\n          fileSize: buf.length\n        }\n      }\n    });\n  });\n} finally {\n  // Selalu bersihkan tmpDir, termasuk saat error\n  try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch(_) {}\n}\n\nreturn out;"
+      },
+      "id": "16ab9e48-0147-478e-8f8a-28ee1c5dbe3d",
+      "name": "Audio Conversion",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        -208
+      ]
+    },
+    {
+      "id": "1fe7ca69-ada2-492d-bf35-515e8e3234ec",
+      "name": "Merge Transcripts",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        336,
+        160
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const items = $input.all();\n\nif (items.length === 0) {\n  throw new Error('Merge Transcripts: tidak ada hasil dari Whisper');\n}\n\n// Ambil expected total_chunks dari Audio Conversion (semua chunk punya nilai sama)\nlet expectedTotal = null;\ntry { expectedTotal = $('Audio Conversion').first().json.total_chunks; } catch(_) {}\n\n// Validasi 1: jumlah hasil harus sesuai\nif (expectedTotal != null && items.length !== expectedTotal) {\n  throw new Error(\n    'Jumlah hasil Whisper (' + items.length + ') != jumlah chunk (' + expectedTotal + ')'\n  );\n}\n\n// Bangun data chunk dengan chunk_index via itemMatching dari Audio Conversion\nconst chunkData = [];\nfor (let i = 0; i < items.length; i++) {\n  let chunkIdx = i; // fallback ke sequential index\n  try {\n    const acItem = $('Audio Conversion').itemMatching(i);\n    if (acItem && acItem.json != null && acItem.json.chunk_index != null) {\n      chunkIdx = acItem.json.chunk_index;\n    }\n  } catch(_) { /* gunakan fallback */ }\n\n  const raw = items[i].json;\n  const text = (raw && typeof raw.text === 'string') ? raw.text : '';\n  chunkData.push({ idx: chunkIdx, text });\n}\n\n// Sort berdasarkan chunk_index\nchunkData.sort((a, b) => a.idx - b.idx);\n\n// Validasi 2: indices kontigu dari 0 sampai N-1\nfor (let i = 0; i < chunkData.length; i++) {\n  if (chunkData[i].idx !== i) {\n    const got = chunkData.map(c => c.idx).join(',');\n    throw new Error('chunk_index tidak kontigu \u00e2\u20ac\u201d expected ' + i + ', got [' + got + ']');\n  }\n}\n\n// Validasi 3: tidak ada chunk kosong\nfor (const c of chunkData) {\n  if (!c.text || c.text.trim() === '') {\n    throw new Error('Chunk ' + c.idx + ' menghasilkan transkrip kosong');\n  }\n}\n\nconst fullText = chunkData.map(c => c.text.trim()).join(' ');\n\nreturn [{\n  json: {\n    text: fullText,\n    total_chunks: chunkData.length,\n    merge_status: 'complete'\n  },\n  pairedItem: { item: 0 }\n}];"
+      }
+    }
+  ],
+  "connections": {
+    "Parse AI Response": {
+      "main": [
+        [
+          {
+            "node": "Create Notion Page",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Classify & Plan": {
+      "main": [
+        [
+          {
+            "node": "Parse Classifier Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Classifier Output": {
+      "main": [
+        [
+          {
+            "node": "Router",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Router": {
+      "main": [
+        [
+          {
+            "node": "Notify - Tidak Bisa Diproses",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Extract - Meeting",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Extract - One on One",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Extract - Non Meeting",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Notify - Human Review",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract - Meeting": {
+      "main": [
+        [
+          {
+            "node": "Parse AI Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract - Non Meeting": {
+      "main": [
+        [
+          {
+            "node": "Parse - Non Meeting",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse - Non Meeting": {
+      "main": [
+        [
+          {
+            "node": "Create Notion Page - Non Meeting",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract - One on One": {
+      "main": [
+        [
+          {
+            "node": "Parse - One on One",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse - One on One": {
+      "main": [
+        [
+          {
+            "node": "Create Notion Page - One on One",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Notion Page": {
+      "main": [
+        [
+          {
+            "node": "Format Blocks - Meeting",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Blocks - Meeting": {
+      "main": [
+        [
+          {
+            "node": "Append Blocks - Meeting",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append Blocks - Meeting": {
+      "main": [
+        [
+          {
+            "node": "Post to Slack",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Notion Page - One on One": {
+      "main": [
+        [
+          {
+            "node": "Format Blocks - One on One",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Blocks - One on One": {
+      "main": [
+        [
+          {
+            "node": "Append Blocks - One on One",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append Blocks - One on One": {
+      "main": [
+        [
+          {
+            "node": "Post to Slack - One on One",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Notion Page - Non Meeting": {
+      "main": [
+        [
+          {
+            "node": "Format Blocks - Non Meeting",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Blocks - Non Meeting": {
+      "main": [
+        [
+          {
+            "node": "Append Blocks - Non Meeting",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append Blocks - Non Meeting": {
+      "main": [
+        [
+          {
+            "node": "Post to Slack - Non Meeting",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload Meeting Recording": {
+      "main": [
+        [
+          {
+            "node": "Audio Conversion",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Transcripts": {
+      "main": [
+        [
+          {
+            "node": "Classify & Plan",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Audio Conversion": {
+      "main": [
+        [
+          {
+            "node": "Transcribe with Whisper",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transcribe with Whisper": {
+      "main": [
+        [
+          {
+            "node": "Merge Transcripts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": true,
+    "binaryMode": "separate"
+  },
+  "versionId": "6822f2e8-623d-4bf9-a611-bd0f89374d75"
+}

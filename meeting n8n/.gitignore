@@ -1,0 +1,32 @@
+# Credentials & secrets
+.env
+*.env
+credentials.json
+
+# n8n runtime
+n8n.pid
+C:\Users\Satz\.n8n\
+
+# Media & test files (large, bukan source code)
+*.mp4
+*.mp3
+*.m4a
+*.wav
+test_audio*
+videoplayback*
+
+# Template & skill libraries (bukan milik project ini)
+n8n-skills/
+n8n-workflow-builder/
+n8n-workflows-Zie619/
+awesome-n8n-templates/
+4000+ N8N Workflow Automation Templates*/
+SKILL-*.md
+
+# Runtime data
+slack_channels.json
+plugins/
+
+# Tool & agent directories
+.agents/
+.claude/
