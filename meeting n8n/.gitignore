@@ -23,6 +23,20 @@ awesome-n8n-templates/
 4000+ N8N Workflow Automation Templates*/
 SKILL-*.md
 
+# Internal planning docs (bukan bagian dari program)
+01-SDD-meeting-notes.md
+02-RULES.md
+03-TODO.md
+
+# Helper/generator scripts (bukan bagian dari program)
+gen_*.py
+*_ops.json
+ops_*.json
+ops_list.txt
+batch*.json
+parse_op.json
+codenode_ops.json
+
 # Runtime data
 slack_channels.json
 plugins/
@@ -30,3 +44,7 @@ plugins/
 # Tool & agent directories
 .agents/
 .claude/
+
+# Python cache
+__pycache__/
+*.pyc

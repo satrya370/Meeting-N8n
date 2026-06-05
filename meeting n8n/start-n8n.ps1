@@ -29,6 +29,7 @@ $env:NODE_FUNCTION_ALLOW_EXTERNAL = '*'
 $env:N8N_PAYLOAD_SIZE_MAX         = '600'   # raw/JSON body limit (MB), default 16
 $env:N8N_FORMDATA_FILE_SIZE_MAX   = '600'   # FORM file upload limit (MB), default 200 <- this was the real blocker
 $env:N8N_DEFAULT_BINARY_DATA_MODE = 'filesystem'
+$env:GENERIC_TIMEZONE             = 'Asia/Jakarta'  # WIB UTC+7 — tanpa ini n8n default ke America/New_York
 
 # --- Pastikan folder binaryData ada ---
 $binaryDataDir = "$env:USERPROFILE\.n8n\binaryData"
