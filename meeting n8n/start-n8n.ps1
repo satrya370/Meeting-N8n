@@ -24,9 +24,9 @@ Get-CimInstance Win32_Process -Filter "Name='node.exe'" |
 Start-Sleep -Seconds 1
 
 # --- Environment variables ---
-$env:N8N_HOST     = "c8b78735-65ed-4b2b-a345-4064ea7cc0dd.cfargotunnel.com"
+$env:N8N_HOST     = "chowtime-angling-threefold.ngrok-free.dev"
 $env:N8N_PROTOCOL = "https"
-$env:WEBHOOK_URL  = "https://c8b78735-65ed-4b2b-a345-4064ea7cc0dd.cfargotunnel.com"
+$env:WEBHOOK_URL  = "https://chowtime-angling-threefold.ngrok-free.dev"
 $env:NODE_FUNCTION_ALLOW_BUILTIN  = '*'
 $env:NODE_FUNCTION_ALLOW_EXTERNAL = '*'
 $env:N8N_PAYLOAD_SIZE_MAX         = '600'   # raw/JSON body limit (MB), default 16
@@ -39,6 +39,17 @@ $binaryDataDir = "$env:USERPROFILE\.n8n\binaryData"
 if (-not (Test-Path $binaryDataDir)) {
     New-Item -ItemType Directory -Path $binaryDataDir -Force | Out-Null
     Write-Host "Dibuat: $binaryDataDir" -ForegroundColor Cyan
+}
+
+# --- Jalankan ngrok tunnel ---
+$ngrokPath = "$PSScriptRoot\cloudflare\ngrok.exe"
+if (Test-Path $ngrokPath) {
+    Start-Process -FilePath $ngrokPath `
+        -ArgumentList 'http', '--domain=chowtime-angling-threefold.ngrok-free.dev', '5678' `
+        -WindowStyle Hidden
+    Write-Host "ngrok tunnel dimulai." -ForegroundColor Cyan
+} else {
+    Write-Host "ngrok.exe tidak ditemukan di $ngrokPath" -ForegroundColor Yellow
 }
 
 # --- Jalankan n8n ---
