@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Meeting Notes AI — Portfolio Trial</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #0f172a; color: #e2e8f0;
+      min-height: 100vh; display: flex; flex-direction: column;
+      align-items: center; padding: 48px 24px;
+    }
+    .badge {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: #1e293b; border: 1px solid #334155;
+      border-radius: 9999px; padding: 6px 16px;
+      font-size: 13px; margin-bottom: 32px;
+    }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: #64748b; }
+    .dot.online  { background: #22c55e; animation: pulse 2s infinite; }
+    .dot.offline { background: #ef4444; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
+    h1 {
+      font-size: clamp(28px, 5vw, 48px); font-weight: 700; text-align: center;
+      background: linear-gradient(135deg, #e2e8f0 0%, #94a3b8 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text; margin-bottom: 16px;
+    }
+    .tagline {
+      font-size: 18px; color: #94a3b8; text-align: center;
+      margin-bottom: 48px; max-width: 480px; line-height: 1.6;
+    }
+    .steps {
+      display: flex; gap: 24px; margin-bottom: 48px;
+      flex-wrap: wrap; justify-content: center;
+    }
+    .step {
+      background: #1e293b; border: 1px solid #334155; border-radius: 12px;
+      padding: 24px; max-width: 200px; text-align: center;
+    }
+    .step-num  { font-size: 28px; margin-bottom: 12px; }
+    .step h3   { font-size: 15px; font-weight: 600; margin-bottom: 8px; color: #e2e8f0; }
+    .step p    { font-size: 13px; color: #64748b; line-height: 1.5; }
+    .cta {
+      display: inline-block; background: #3b82f6; color: white;
+      font-size: 17px; font-weight: 600; padding: 16px 40px;
+      border-radius: 10px; text-decoration: none;
+      transition: background .2s, transform .1s; margin-bottom: 48px;
+    }
+    .cta:hover { background: #2563eb; transform: translateY(-1px); }
+    .cta.disabled { background: #334155; color: #64748b; cursor: not-allowed; pointer-events: none; }
+    footer { font-size: 12px; color: #475569; text-align: center; line-height: 1.8; }
+  </style>
+</head>
+<body>
+  <div class="badge">
+    <span class="dot" id="dot"></span>
+    <span id="status-text">Memeriksa status...</span>
+  </div>
+
+  <h1>Meeting Notes AI</h1>
+  <p class="tagline">
+    Upload rekaman rapat, dapatkan notulen terstruktur dalam hitungan menit.
+    Didukung Whisper + Groq AI.
+  </p>
+
+  <div class="steps">
+    <div class="step">
+      <div class="step-num">🎙️</div>
+      <h3>1. Upload</h3>
+      <p>Unggah rekaman audio rapat Anda (MP4, MP3, M4A)</p>
+    </div>
+    <div class="step">
+      <div class="step-num">🤖</div>
+      <h3>2. AI Analisis</h3>
+      <p>Whisper transkrip · Groq ekstrak poin, keputusan, action items</p>
+    </div>
+    <div class="step">
+      <div class="step-num">📄</div>
+      <h3>3. Unduh</h3>
+      <p>Download notulen Markdown · tersimpan otomatis ke Notion</p>
+    </div>
+  </div>
+
+  <a href="#" class="cta disabled" id="cta-btn">Memeriksa server...</a>
+
+  <footer>
+    Trial portfolio · Server personal (bisa offline) · Data tidak disimpan permanen<br>
+    Dibuat dengan n8n + Claude Code
+  </footer>
+
+  <script>
+    const TUNNEL_URL = 'https://c8b78735-65ed-4b2b-a345-4064ea7cc0dd.cfargotunnel.com';
+    const FORM_PATH  = '/form/36283c3b-8f86-458c-a43d-36142925402f';
+    const dot  = document.getElementById('dot');
+    const text = document.getElementById('status-text');
+    const btn  = document.getElementById('cta-btn');
+
+    async function checkStatus() {
+      try {
+        await fetch(TUNNEL_URL + '/healthz', {
+          mode: 'no-cors',
+          signal: AbortSignal.timeout(5000)
+        });
+        // If we get here without exception, server is reachable
+        dot.className  = 'dot online';
+        text.textContent = 'Server Online';
+        btn.href = TUNNEL_URL + FORM_PATH;
+        btn.textContent = 'Coba Sekarang →';
+        btn.classList.remove('disabled');
+      } catch (e) {
+        console.error('Status check failed:', e);
+        dot.className  = 'dot offline';
+        text.textContent = 'Server Offline';
+        btn.textContent = 'Server sedang offline';
+        btn.classList.add('disabled');
+      }
+    }
+
+    checkStatus();
+    setInterval(checkStatus, 30000);
+  </script>
+</body>
+</html>
