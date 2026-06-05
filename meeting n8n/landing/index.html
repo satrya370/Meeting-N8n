@@ -100,19 +100,18 @@
 
     async function checkStatus() {
       try {
-        const r = await fetch(TUNNEL_URL + '/healthz', {
+        await fetch(TUNNEL_URL + '/healthz', {
+          mode: 'no-cors',
           signal: AbortSignal.timeout(5000)
         });
-        if (r.ok) {
-          dot.className  = 'dot online';
-          text.textContent = 'Server Online';
-          btn.href = TUNNEL_URL + FORM_PATH;
-          btn.textContent = 'Coba Sekarang →';
-          btn.classList.remove('disabled');
-        } else {
-          throw new Error('not ok');
-        }
-      } catch {
+        // If we get here without exception, server is reachable
+        dot.className  = 'dot online';
+        text.textContent = 'Server Online';
+        btn.href = TUNNEL_URL + FORM_PATH;
+        btn.textContent = 'Coba Sekarang →';
+        btn.classList.remove('disabled');
+      } catch (e) {
+        console.error('Status check failed:', e);
         dot.className  = 'dot offline';
         text.textContent = 'Server Offline';
         btn.textContent = 'Server sedang offline';
