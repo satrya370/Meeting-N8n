@@ -24,6 +24,9 @@ Get-CimInstance Win32_Process -Filter "Name='node.exe'" |
 Start-Sleep -Seconds 1
 
 # --- Environment variables ---
+$env:N8N_HOST     = "c8b78735-65ed-4b2b-a345-4064ea7cc0dd.cfargotunnel.com"
+$env:N8N_PROTOCOL = "https"
+$env:WEBHOOK_URL  = "https://c8b78735-65ed-4b2b-a345-4064ea7cc0dd.cfargotunnel.com"
 $env:NODE_FUNCTION_ALLOW_BUILTIN  = '*'
 $env:NODE_FUNCTION_ALLOW_EXTERNAL = '*'
 $env:N8N_PAYLOAD_SIZE_MAX         = '600'   # raw/JSON body limit (MB), default 16
@@ -51,6 +54,7 @@ Write-Host ""
 Write-Host "n8n berjalan!" -ForegroundColor Green
 Write-Host "  PID  : $($process.Id)  (tersimpan di n8n.pid)" -ForegroundColor White
 Write-Host "  URL  : http://localhost:5678" -ForegroundColor White
+Write-Host "  Publik: https://$env:N8N_HOST" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "Env vars aktif:" -ForegroundColor DarkGray
 Write-Host "  NODE_FUNCTION_ALLOW_BUILTIN  = $env:NODE_FUNCTION_ALLOW_BUILTIN" -ForegroundColor DarkGray
