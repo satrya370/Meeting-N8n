@@ -48,3 +48,7 @@ plugins/
 # Python cache
 __pycache__/
 *.pyc
+
+# Cloudflare tunnel binary + auto-generated credentials (no secrets in config.yml)
+cloudflare/cloudflared.exe
+cloudflare/*.json
