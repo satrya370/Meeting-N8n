@@ -1,0 +1,16 @@
+# Apply together with your existing docker-compose.yml:
+# docker compose -f docker-compose.yml -f docker-compose.meeting-notes.override.yml up -d --build
+services:
+  n8n:
+    environment:
+      # Required by the Audio Conversion Code node.
+      NODE_FUNCTION_ALLOW_BUILTIN: fs,path,os,child_process
+      N8N_DEFAULT_BINARY_DATA_MODE: filesystem
+      N8N_PAYLOAD_SIZE_MAX: "160"
+      N8N_RUNNERS_ENABLED: "true"
+
+      # Fill this in your server-side .env file. Do not commit it.
+      GROQ_API_KEY: ${GROQ_API_KEY}
+    volumes:
+      - ./workflows:/workflows:ro
+

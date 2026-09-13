@@ -49,3 +49,20 @@ npm run down
 ```
 
 `npm` is optional; each command just wraps Docker Compose.
+
+## Add Meeting Notes to an existing n8n VPS stack
+
+If your VPS already runs n8n with the IG Content Builder and Chromium, use the files made specifically for that stack instead of replacing its database or existing `n8n_data` directory.
+
+1. Copy `Dockerfile.meeting-notes` over the VPS `Dockerfile`. It preserves the existing IG template setup and adds `ffmpeg`.
+2. Copy `docker-compose.meeting-notes.override.yml` into the same directory as the existing `docker-compose.yml`.
+3. Create a server-only `.env` entry: `GROQ_API_KEY=...`.
+4. Copy `workflows/meeting-notes-main-pipeline.json` to `./workflows/` on the VPS.
+5. Rebuild while retaining the existing `./n8n_data` volume:
+
+   ```bash
+   docker compose -f docker-compose.yml -f docker-compose.meeting-notes.override.yml up -d --build
+   docker compose -f docker-compose.yml -f docker-compose.meeting-notes.override.yml exec n8n n8n import:workflow --input=/workflows/meeting-notes-main-pipeline.json
+   ```
+
+The imported workflow still needs its SMTP and LLM HTTP credentials configured in the n8n UI before activation.

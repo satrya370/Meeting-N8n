@@ -1,0 +1,19 @@
+FROM n8nio/n8n:latest
+
+USER root
+
+# Existing IG Content Builder dependencies plus ffmpeg for Meeting Notes audio conversion.
+RUN apk add --no-cache ffmpeg \
+    && npm install -g xlsx docxtemplater pizzip
+
+ENV PUPPETEER_SKIP_DOWNLOAD=true \
+    CHROMIUM_WS_ENDPOINT=ws://chromium:3000
+
+COPY --chown=node:node IG-Content-Builder-Workflow-N8n/ig-templates /home/node/ig-templates
+COPY --chown=node:node IG-Content-Builder-Workflow-N8n/ig-templates-demo /home/node/ig-templates-demo
+
+USER node
+
+RUN cd /home/node/ig-templates && npm install --omit=dev \
+    && cd /home/node/ig-templates-demo && npm install --omit=dev
+
