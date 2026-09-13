@@ -1,0 +1,927 @@
+{
+    "name":  "Meeting Notes — Main Pipeline",
+    "active":  false,
+    "nodes":  [
+                  {
+                      "parameters":  {
+                                         "formTitle":  "Meeting Notes Automation",
+                                         "formDescription":  "Upload rekaman meeting atau paste link Google Drive (maks 150 MB, maks 60 menit).\nFormat didukung: MP4, MKV, MOV, M4A, MP3, WAV\nUntuk Google Drive: pastikan sharing sudah diset ke \"Anyone with the link can view\".",
+                                         "formFields":  {
+                                                            "values":  [
+                                                                           {
+                                                                               "fieldLabel":  "File Rekaman Meeting (opsional jika pakai Google Drive)",
+                                                                               "fieldType":  "file",
+                                                                               "fieldName":  "recording",
+                                                                               "acceptFileTypes":  ".mp4,.mp3,.m4a,.wav,.webm,.ogg,.mkv,.mov"
+                                                                           },
+                                                                           {
+                                                                               "fieldLabel":  "Link Google Drive (opsional jika upload langsung)",
+                                                                               "fieldName":  "drive_link",
+                                                                               "placeholder":  "https://drive.google.com/file/d/..."
+                                                                           },
+                                                                           {
+                                                                               "fieldLabel":  "Nama Meeting (opsional)",
+                                                                               "fieldName":  "meeting_name"
+                                                                           },
+                                                                           {
+                                                                               "fieldLabel":  "Instruksi Tambahan untuk AI (opsional)",
+                                                                               "fieldType":  "textarea",
+                                                                               "fieldName":  "custom_instructions",
+                                                                               "placeholder":  "Contoh: Fokus pada action items teknis. Tulis output dalam bahasa Inggris. Abaikan small talk."
+                                                                           },
+                                                                           {
+                                                                               "fieldLabel":  "Format Output",
+                                                                               "fieldType":  "dropdown",
+                                                                               "fieldName":  "format_output",
+                                                                               "fieldOptions":  {
+                                                                                                    "values":  [
+                                                                                                                   {
+                                                                                                                       "option":  "Markdown"
+                                                                                                                   },
+                                                                                                                   {
+                                                                                                                       "option":  "PDF"
+                                                                                                                   }
+                                                                                                               ]
+                                                                                                }
+                                                                           },
+                                                                           {
+                                                                               "fieldLabel":  "Email Penerima Notulen (opsional, pisah koma untuk banyak email)",
+                                                                               "fieldName":  "email_penerima",
+                                                                               "placeholder":  "email1@gmail.com, email2@gmail.com"
+                                                                           }
+                                                                       ]
+                                                        },
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "id":  "ef82b407-1010-466c-873e-1ffc608ff103",
+                      "name":  "Upload Meeting Recording",
+                      "type":  "n8n-nodes-base.formTrigger",
+                      "typeVersion":  2.5,
+                      "position":  [
+                                       -800,
+                                       0
+                                   ],
+                      "webhookId":  "36283c3b-8f86-458c-a43d-36142925402f"
+                  },
+                  {
+                      "parameters":  {
+                                         "method":  "POST",
+                                         "url":  "https://api.groq.com/openai/v1/audio/transcriptions",
+                                         "sendHeaders":  true,
+                                         "headerParameters":  {
+                                                                  "parameters":  [
+                                                                                     {
+                                                                                         "name":  "Authorization",
+                                                                                         "value":  "={{ 'Bearer ' + $env.GROQ_API_KEY }}"
+                                                                                     }
+                                                                                 ]
+                                                              },
+                                         "sendBody":  true,
+                                         "contentType":  "multipart-form-data",
+                                         "bodyParameters":  {
+                                                                "parameters":  [
+                                                                                   {
+                                                                                       "parameterType":  "formBinaryData",
+                                                                                       "name":  "file",
+                                                                                       "inputDataFieldName":  "recording"
+                                                                                   },
+                                                                                   {
+                                                                                       "name":  "model",
+                                                                                       "value":  "whisper-large-v3-turbo"
+                                                                                   },
+                                                                                   {
+                                                                                       "name":  "response_format",
+                                                                                       "value":  "json"
+                                                                                   }
+                                                                               ]
+                                                            },
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "id":  "f4233061-9393-463d-b193-3f6a3ff34be1",
+                      "name":  "Transcribe with Whisper",
+                      "type":  "n8n-nodes-base.httpRequest",
+                      "typeVersion":  4.4,
+                      "position":  [
+                                       672,
+                                       -208
+                                   ],
+                      "retryOnFail":  true,
+                      "waitBetweenTries":  5000
+                  },
+                  {
+                      "parameters":  {
+                                         "jsCode":  "const item = $input.first();\nif (item.json.error) throw new Error(\u0027LLM timeout/error: \u0027 + (item.json.error.message || JSON.stringify(item.json.error)));\nlet raw = item.json.content || (item.json.choices \u0026\u0026 item.json.choices[0] \u0026\u0026 item.json.choices[0].message \u0026\u0026 item.json.choices[0].message.content) || item.json.text || item.json.message || item.json.output || JSON.stringify(item.json);\nraw = String(raw).replace(/^```json\\s*/i, \u0027\u0027).replace(/```\\s*$/, \u0027\u0027).trim();\nlet parsed;\ntry { parsed = JSON.parse(raw); } catch(e) {\n  const match = raw.match(/\\{[\\s\\S]*\\}/);\n  if (match) { parsed = JSON.parse(match[0]); }\n  else { throw new Error(\u0027Gagal parse JSON dari AI: \u0027 + raw.substring(0, 300)); }\n}\nparsed.meeting_title = parsed.meeting_title || \u0027Untitled Meeting\u0027;\nparsed.date = parsed.date || new Date().toISOString().split(\u0027T\u0027)[0];\nparsed.participants = Array.isArray(parsed.participants) ? parsed.participants : [];\nparsed.key_decisions = Array.isArray(parsed.key_decisions) ? parsed.key_decisions : [];\nparsed.action_items = Array.isArray(parsed.action_items) ? parsed.action_items : [];\nparsed.discussion_topics = Array.isArray(parsed.discussion_topics) ? parsed.discussion_topics : [];\nparsed.open_questions = Array.isArray(parsed.open_questions) ? parsed.open_questions : [];\nparsed.executive_summary = parsed.executive_summary || \u0027\u0027;\nparsed.action_items_count = parsed.action_items.length;\nreturn [{ json: parsed }];"
+                                     },
+                      "id":  "51f96279-d0bc-4f6f-aadb-8ac500abd9ad",
+                      "name":  "Parse AI Response",
+                      "type":  "n8n-nodes-base.code",
+                      "typeVersion":  2,
+                      "position":  [
+                                       1392,
+                                       -256
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "jsCode":  "const item = $input.first();\n// Groq: choices[0].message.content | MiniMax: content | fallback\nlet raw = item.json.content || (item.json.choices \u0026\u0026 item.json.choices[0] \u0026\u0026 item.json.choices[0].message \u0026\u0026 item.json.choices[0].message.content) || item.json.text || item.json.message || JSON.stringify(item.json);\nraw = String(raw).replace(/^```json\\s*/i, \u0027\u0027).replace(/```\\s*$/g, \u0027\u0027).trim();\nlet parsed;\ntry { parsed = JSON.parse(raw); } catch(e) {\n  const match = raw.match(/\\{[\\s\\S]*\\}/);\n  if (match) { try { parsed = JSON.parse(match[0]); } catch(e2) { throw new Error(\u0027Gagal parse classifier JSON: \u0027 + raw.substring(0, 200)); } }\n  else { throw new Error(\u0027Tidak ada JSON di output classifier: \u0027 + raw.substring(0, 200)); }\n}\nconst validClasses = [\u0027meeting\u0027, \u0027one_on_one\u0027, \u0027non_meeting\u0027];\nparsed.content_class = validClasses.includes(parsed.content_class) ? parsed.content_class : \u0027meeting\u0027;\nparsed.should_process = parsed.should_process !== false;\nparsed.confidence = typeof parsed.confidence === \u0027number\u0027 ? Math.min(1, Math.max(0, parsed.confidence)) : 0.5;\nparsed.ambiguous = parsed.ambiguous === true || parsed.confidence \u003c 0.75;\nparsed.ambiguity_reason = parsed.ambiguity_reason || null;\nparsed.focus_instruction = parsed.focus_instruction || \u0027\u0027;\nparsed.key_focus = Array.isArray(parsed.key_focus) ? parsed.key_focus : [];\nparsed.notion_db = parsed.notion_db || \u0027meeting\u0027;\nparsed.language = parsed.language || \u0027id\u0027;\nparsed.transcript = $(\u0027Merge Transcripts\u0027).first().json.text || \u0027\u0027;\n\nconst _fi = parsed.focus_instruction || \u0027\u0027;\nconst _kf = Array.isArray(parsed.key_focus) ? parsed.key_focus.join(\u0027, \u0027) : \u0027\u0027;\nconst _dt = new Date().toLocaleDateString(\u0027en-CA\u0027, {timeZone: \u0027Asia/Jakarta\u0027});\nconst _lang = parsed.language || \u0027id\u0027;\nconst _tr = parsed.transcript || \u0027\u0027;\nconst _mt = parsed.meeting_type || \u0027general\u0027;\nconst _st = parsed.session_type || \u0027one_on_one\u0027;\nconst _cc = parsed.content_category || \u0027general\u0027;\n\nconst _ci = ($(\u0027Upload Meeting Recording\u0027).first().json?.custom_instructions || \u0027\u0027).trim();\nconst _ciBlock = _ci ? \u0027\\n\\nINSTRUKSI TAMBAHAN DARI USER:\\n\u0027 + _ci : \u0027\u0027;\n\nconst schemaMeeting = {meeting_title:\"judul\",date:\"YYYY-MM-DD\",participants:[\"string\"],key_decisions:[\"string\"],action_items:[{task:\"string\",owner:\"string|null\",due_date:\"string|null\"}],discussion_topics:[{topic:\"string\",summary:\"string\"}],open_questions:[\"string\"],executive_summary:\"3-4 kalimat\"};\nconst schemaOON = {content_title:\"judul sesi\",session_type:\"interview|counseling|client_pitch|performance_review|mentoring\",date:\"YYYY-MM-DD|null\",person_a:{name:\"nama\",role:\"peran\"},person_b:{name:\"nama\",role:\"peran\"},executive_summary:\"3-4 kalimat\",key_topics:[\"topik\"],highlights:[\"momen signifikan\"],assessment:\"evaluasi 1-2 kalimat\",action_items:[{task:\"string\",owner:\"string|null\",due_date:\"string|null\"}],follow_up:\"rekomendasi|null\"};\nconst schemaNM = {content_title:\"judul\",content_category:\"philosophy|science|educational_interview|podcast|lecture|comedy|casual_discussion\",content_subcategory:\"string|null\",topic:\"topik utama|null\",sub_topic:\"aspek spesifik|null\",date:\"YYYY-MM-DD|null\",participants:[\"pembicara\"],moderator:\"nama|null\",question:\"pertanyaan sentral|null\",executive_summary:\"3-4 kalimat\",detailed_notes:{main_themes:[\"tema\"],key_points:[\"poin penting\"],notable_quotes:[\"kutipan\"],open_questions:[\"pertanyaan tidak terjawab\"]},follow_up:\"rekomendasi|null\"};\n\nlet _prompt;\nif (parsed.content_class === \u0027one_on_one\u0027) {\n  _prompt = \u0027Kamu adalah asisten notulen untuk sesi percakapan personal. \u0027 + _fi + \u0027\\n\\nEkstrak dari transkrip berikut dalam format JSON murni.\\n\\nJENIS SESI: \u0027 + _st + \u0027\\nFOKUS: \u0027 + _kf + \u0027\\n\\nSKEMA:\u0027 + JSON.stringify(schemaOON) + \u0027\\n\\nATURAN: person_a=yang memimpin, person_b=yang dinilai. date=\u0027 + _dt + \u0027. Bahasa: \u0027 + _lang + _ciBlock + \u0027\\n\\nTRANSKRIP:\\n\"\"\"\\n\u0027 + _tr + \u0027\\n\"\"\"\u0027;\n} else if (parsed.content_class === \u0027non_meeting\u0027) {\n  _prompt = \u0027Kamu adalah asisten ringkasan konten. \u0027 + _fi + \u0027\\n\\nBuat catatan konten dalam format JSON murni.\\n\\nKATEGORI: \u0027 + _cc + \u0027\\nFOKUS: \u0027 + _kf + \u0027\\n\\nSKEMA:\u0027 + JSON.stringify(schemaNM) + \u0027\\n\\nATURAN: notable_quotes kutip langsung. Jangan tambah info yang tidak ada di transkrip. date=\u0027 + _dt + \u0027. Bahasa: \u0027 + _lang + _ciBlock + \u0027\\n\\nTRANSKRIP:\\n\"\"\"\\n\u0027 + _tr + \u0027\\n\"\"\"\u0027;\n} else {\n  _prompt = \u0027Kamu adalah asisten notulen profesional. \u0027 + _fi + \u0027\\n\\nEkstrak dari transkrip meeting berikut dalam format JSON murni.\\n\\nJENIS MEETING: \u0027 + _mt + \u0027\\nFOKUS: \u0027 + _kf + \u0027\\n\\nSKEMA:\u0027 + JSON.stringify(schemaMeeting) + \u0027\\n\\nATURAN: owner/due_date null jika tidak disebut. date=\u0027 + _dt + \u0027. Bahasa: \u0027 + _lang + _ciBlock + \u0027\\n\\nTRANSKRIP:\\n\"\"\"\\n\u0027 + _tr + \u0027\\n\"\"\"\u0027;\n}\n\nparsed.extract_body = {model:\u0027vertex_ai/openai/gpt-oss-120b-maas\u0027,messages:[{role:\u0027user\u0027,content:_prompt}],temperature:0.1,max_tokens:4000,response_format:{type:\u0027json_object\u0027}};\n\nreturn [{ json: parsed }];"
+                                     },
+                      "id":  "b4f8dbe7-f59b-4bae-b239-255b1948709d",
+                      "name":  "Parse Classifier Output",
+                      "type":  "n8n-nodes-base.code",
+                      "typeVersion":  2,
+                      "position":  [
+                                       672,
+                                       0
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "rules":  {
+                                                       "values":  [
+                                                                      {
+                                                                          "conditions":  {
+                                                                                             "options":  {
+                                                                                                             "caseSensitive":  true,
+                                                                                                             "leftValue":  "",
+                                                                                                             "typeValidation":  "strict",
+                                                                                                             "version":  2
+                                                                                                         },
+                                                                                             "combinator":  "and",
+                                                                                             "conditions":  [
+                                                                                                                {
+                                                                                                                    "id":  "r0c0",
+                                                                                                                    "leftValue":  "={{ $json.should_process }}",
+                                                                                                                    "operator":  {
+                                                                                                                                     "type":  "boolean",
+                                                                                                                                     "operation":  "false",
+                                                                                                                                     "singleValue":  true
+                                                                                                                                 },
+                                                                                                                    "rightValue":  ""
+                                                                                                                }
+                                                                                                            ]
+                                                                                         },
+                                                                          "renameOutput":  true,
+                                                                          "outputKey":  "Tidak Bisa Diproses"
+                                                                      },
+                                                                      {
+                                                                          "conditions":  {
+                                                                                             "options":  {
+                                                                                                             "caseSensitive":  true,
+                                                                                                             "leftValue":  "",
+                                                                                                             "typeValidation":  "strict",
+                                                                                                             "version":  2
+                                                                                                         },
+                                                                                             "combinator":  "and",
+                                                                                             "conditions":  [
+                                                                                                                {
+                                                                                                                    "id":  "r1c0",
+                                                                                                                    "leftValue":  "={{ $json.content_class }}",
+                                                                                                                    "operator":  {
+                                                                                                                                     "type":  "string",
+                                                                                                                                     "operation":  "equals"
+                                                                                                                                 },
+                                                                                                                    "rightValue":  "meeting"
+                                                                                                                },
+                                                                                                                {
+                                                                                                                    "id":  "r1c1",
+                                                                                                                    "leftValue":  "={{ $json.ambiguous }}",
+                                                                                                                    "operator":  {
+                                                                                                                                     "type":  "boolean",
+                                                                                                                                     "operation":  "false",
+                                                                                                                                     "singleValue":  true
+                                                                                                                                 },
+                                                                                                                    "rightValue":  ""
+                                                                                                                }
+                                                                                                            ]
+                                                                                         },
+                                                                          "renameOutput":  true,
+                                                                          "outputKey":  "Meeting"
+                                                                      },
+                                                                      {
+                                                                          "conditions":  {
+                                                                                             "options":  {
+                                                                                                             "caseSensitive":  true,
+                                                                                                             "leftValue":  "",
+                                                                                                             "typeValidation":  "strict",
+                                                                                                             "version":  2
+                                                                                                         },
+                                                                                             "combinator":  "and",
+                                                                                             "conditions":  [
+                                                                                                                {
+                                                                                                                    "id":  "r2c0",
+                                                                                                                    "leftValue":  "={{ $json.content_class }}",
+                                                                                                                    "operator":  {
+                                                                                                                                     "type":  "string",
+                                                                                                                                     "operation":  "equals"
+                                                                                                                                 },
+                                                                                                                    "rightValue":  "one_on_one"
+                                                                                                                },
+                                                                                                                {
+                                                                                                                    "id":  "r2c1",
+                                                                                                                    "leftValue":  "={{ $json.ambiguous }}",
+                                                                                                                    "operator":  {
+                                                                                                                                     "type":  "boolean",
+                                                                                                                                     "operation":  "false",
+                                                                                                                                     "singleValue":  true
+                                                                                                                                 },
+                                                                                                                    "rightValue":  ""
+                                                                                                                }
+                                                                                                            ]
+                                                                                         },
+                                                                          "renameOutput":  true,
+                                                                          "outputKey":  "One on One"
+                                                                      },
+                                                                      {
+                                                                          "conditions":  {
+                                                                                             "options":  {
+                                                                                                             "caseSensitive":  true,
+                                                                                                             "leftValue":  "",
+                                                                                                             "typeValidation":  "strict",
+                                                                                                             "version":  2
+                                                                                                         },
+                                                                                             "combinator":  "and",
+                                                                                             "conditions":  [
+                                                                                                                {
+                                                                                                                    "id":  "r3c0",
+                                                                                                                    "leftValue":  "={{ $json.content_class }}",
+                                                                                                                    "operator":  {
+                                                                                                                                     "type":  "string",
+                                                                                                                                     "operation":  "equals"
+                                                                                                                                 },
+                                                                                                                    "rightValue":  "non_meeting"
+                                                                                                                },
+                                                                                                                {
+                                                                                                                    "id":  "r3c1",
+                                                                                                                    "leftValue":  "={{ $json.ambiguous }}",
+                                                                                                                    "operator":  {
+                                                                                                                                     "type":  "boolean",
+                                                                                                                                     "operation":  "false",
+                                                                                                                                     "singleValue":  true
+                                                                                                                                 },
+                                                                                                                    "rightValue":  ""
+                                                                                                                }
+                                                                                                            ]
+                                                                                         },
+                                                                          "renameOutput":  true,
+                                                                          "outputKey":  "Non Meeting"
+                                                                      }
+                                                                  ]
+                                                   },
+                                         "options":  {
+                                                         "fallbackOutput":  "extra",
+                                                         "renameFallbackOutput":  "Perlu Review Manual"
+                                                     }
+                                     },
+                      "id":  "d4991b7c-0aee-4512-abfe-c83f4034bd30",
+                      "name":  "Router",
+                      "type":  "n8n-nodes-base.switch",
+                      "typeVersion":  3.2,
+                      "position":  [
+                                       896,
+                                       0
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "jsCode":  "const item = $input.first();\nif (item.json.error) throw new Error(\u0027LLM timeout/error: \u0027 + (item.json.error.message || JSON.stringify(item.json.error)));\nlet raw = item.json.content || (item.json.choices \u0026\u0026 item.json.choices[0] \u0026\u0026 item.json.choices[0].message \u0026\u0026 item.json.choices[0].message.content) || item.json.text || item.json.message || JSON.stringify(item.json);\nraw = String(raw).replace(/^```json\\s*/i, \u0027\u0027).replace(/```\\s*$/g, \u0027\u0027).trim();\nlet parsed;\ntry { parsed = JSON.parse(raw); } catch(e) {\n  const match = raw.match(/\\{[\\s\\S]*\\}/);\n  if (match) { try { parsed = JSON.parse(match[0]); } catch(e2) { throw new Error(\u0027Gagal parse JSON Non-Meeting: \u0027 + raw.substring(0, 300)); } }\n  else { throw new Error(\u0027Tidak ada JSON di output Non-Meeting: \u0027 + raw.substring(0, 300)); }\n}\nparsed.content_title = parsed.content_title || \u0027Untitled Content\u0027;\nparsed.content_category = parsed.content_category || \u0027casual_discussion\u0027;\nparsed.content_subcategory = parsed.content_subcategory || null;\nparsed.topic = parsed.topic || null;\nparsed.sub_topic = parsed.sub_topic || null;\nparsed.date = parsed.date || new Date().toISOString().split(\u0027T\u0027)[0];\nparsed.participants = Array.isArray(parsed.participants) ? parsed.participants : [];\nparsed.moderator = parsed.moderator || null;\nparsed.question = parsed.question || null;\nparsed.executive_summary = parsed.executive_summary || \u0027\u0027;\nparsed.detailed_notes = parsed.detailed_notes || {};\nparsed.detailed_notes.main_themes = Array.isArray(parsed.detailed_notes.main_themes) ? parsed.detailed_notes.main_themes : [];\nparsed.detailed_notes.key_points = Array.isArray(parsed.detailed_notes.key_points) ? parsed.detailed_notes.key_points : [];\nparsed.detailed_notes.notable_quotes = Array.isArray(parsed.detailed_notes.notable_quotes) ? parsed.detailed_notes.notable_quotes : [];\nparsed.detailed_notes.open_questions = Array.isArray(parsed.detailed_notes.open_questions) ? parsed.detailed_notes.open_questions : [];\nparsed.follow_up = parsed.follow_up || null;\nparsed.key_point = parsed.detailed_notes.key_points.length \u003e 0 ? parsed.detailed_notes.key_points[0] : null;\nparsed.summarize = parsed.executive_summary;\nreturn [{ json: parsed }];"
+                                     },
+                      "id":  "d78cfd16-7cd7-49bb-a9b2-e902acaf4e8d",
+                      "name":  "Parse - Non Meeting",
+                      "type":  "n8n-nodes-base.code",
+                      "typeVersion":  2,
+                      "position":  [
+                                       1392,
+                                       160
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "jsCode":  "const item = $input.first();\nif (item.json.error) throw new Error(\u0027LLM timeout/error: \u0027 + (item.json.error.message || JSON.stringify(item.json.error)));\nlet raw = item.json.content || (item.json.choices \u0026\u0026 item.json.choices[0] \u0026\u0026 item.json.choices[0].message \u0026\u0026 item.json.choices[0].message.content) || item.json.text || item.json.message || JSON.stringify(item.json);\nraw = String(raw).replace(/^```json\\s*/i, \u0027\u0027).replace(/```\\s*$/g, \u0027\u0027).trim();\nlet parsed;\ntry { parsed = JSON.parse(raw); } catch(e) {\n  const match = raw.match(/\\{[\\s\\S]*\\}/);\n  if (match) { try { parsed = JSON.parse(match[0]); } catch(e2) { throw new Error(\u0027Gagal parse JSON One-on-One: \u0027 + raw.substring(0, 300)); } }\n  else { throw new Error(\u0027Tidak ada JSON di output One-on-One: \u0027 + raw.substring(0, 300)); }\n}\nparsed.content_title = parsed.content_title || \u0027Untitled Session\u0027;\nparsed.session_type = parsed.session_type || \u0027interview\u0027;\nparsed.date = parsed.date || new Date().toISOString().split(\u0027T\u0027)[0];\nparsed.person_a = parsed.person_a || { name: \u0027Person A\u0027, role: \u0027\u0027 };\nparsed.person_b = parsed.person_b || { name: \u0027Person B\u0027, role: \u0027\u0027 };\nparsed.executive_summary = parsed.executive_summary || \u0027\u0027;\nparsed.key_topics = Array.isArray(parsed.key_topics) ? parsed.key_topics : [];\nparsed.highlights = Array.isArray(parsed.highlights) ? parsed.highlights : [];\nparsed.assessment = parsed.assessment || \u0027\u0027;\nparsed.action_items = Array.isArray(parsed.action_items) ? parsed.action_items : [];\nparsed.follow_up = parsed.follow_up || null;\nparsed.action_items_count = parsed.action_items.length;\nparsed.has_action_items = parsed.action_items.length \u003e 0;\nparsed.follow_up_required = parsed.follow_up !== null \u0026\u0026 parsed.follow_up !== \u0027\u0027;\nparsed.person_a_display = parsed.person_a.role ? parsed.person_a.name + \u0027 (\u0027 + parsed.person_a.role + \u0027)\u0027 : parsed.person_a.name;\nparsed.person_b_display = parsed.person_b.role ? parsed.person_b.name + \u0027 (\u0027 + parsed.person_b.role + \u0027)\u0027 : parsed.person_b.name;\nreturn [{ json: parsed }];"
+                                     },
+                      "id":  "96c21db8-eadf-425b-8081-578e239a46cd",
+                      "name":  "Parse - One on One",
+                      "type":  "n8n-nodes-base.code",
+                      "typeVersion":  2,
+                      "position":  [
+                                       1392,
+                                       0
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "jsCode":  "const path = require(\u0027path\u0027);\nconst fs = require(\u0027fs\u0027);\nconst os = require(\u0027os\u0027);\nconst { execSync } = require(\u0027child_process\u0027);\n\n// --- Konfigurasi ---\n// 5 menit per chunk =\u003e Whisper selesai ~40-50s =\u003e aman di bawah 120s proxy timeout\n// HTTP Request node n8n menjalankan semua item secara paralel (Promise.allSettled),\n// sehingga N chunk berjalan bersamaan. Dengan chunk 5 menit masing-masing selesai\n// jauh sebelum timeout, ini aman untuk audio hingga 4 jam (MAX_CHUNKS=30 x 5 menit).\nconst CHUNK_SECONDS = 300;  // 5 menit per chunk\nconst MAX_CHUNKS    = 30;   // max ~2.5 jam audio\nconst BITRATE       = \u002732k\u0027; // naik dari 16k: akurasi lebih baik, ukuran ~2x (5 menit ~1.2 MB)\n\nconst item = $input.first();\nconst binaryKey = \u0027recording\u0027;\nif (!item.binary || !item.binary[binaryKey]) {\n  throw new Error(\u0027No recording binary data found\u0027);\n}\nconst binaryData = item.binary[binaryKey];\nconst origName   = binaryData.fileName || \u0027recording.mp4\u0027;\nconst ts         = Date.now();\n\n// Direktori unik per eksekusi â€” terisolasi\nconst tmpDir = path.join(os.tmpdir(), \u0027n8n_mtg_\u0027 + ts).replace(/\\\\/g, \u0027/\u0027);\nfs.mkdirSync(tmpDir, { recursive: true });\n\nlet inputFile;\nconst out = [];\n\ntry {\n  if (binaryData.id \u0026\u0026 String(binaryData.id).startsWith(\u0027filesystem-v2:\u0027)) {\n    // File sudah di disk (filesystem binary mode) â€” akses langsung, 0 alokasi RAM ekstra\n    const rel = String(binaryData.id).replace(\u0027filesystem-v2:\u0027, \u0027\u0027);\n    inputFile = path.join(os.homedir(), \u0027.n8n\u0027, \u0027binaryData\u0027, rel).replace(/\\\\/g, \u0027/\u0027);\n  } else {\n    // In-memory base64 â€” decode dan tulis ke tmpDir\n    // MEMORY NOTE: decode ~1.33x ukuran base64; untuk 1 jam video ~50-150 MB sementara.\n    // Aktifkan N8N_DEFAULT_BINARY_DATA_MODE=filesystem untuk menghindari ini pada file besar.\n    const buffer = Buffer.from(binaryData.data, \u0027base64\u0027);\n    const ext = path.extname(origName) || \u0027.mp4\u0027;\n    inputFile = path.join(tmpDir, \u0027input\u0027 + ext).replace(/\\\\/g, \u0027/\u0027);\n    fs.writeFileSync(inputFile, buffer);\n  }\n\n  const fileSizeMB  = (fs.statSync(inputFile).size / 1024 / 1024).toFixed(2);\n  const outPattern  = path.join(tmpDir, \u0027chunk_%03d.mp3\u0027).replace(/\\\\/g, \u0027/\u0027);\n\n  // Satu pass: konversi + segmentasi\n  execSync(\n    \u0027ffmpeg -i \"\u0027 + inputFile + \u0027\" -vn -ar 16000 -ac 1 -b:a \u0027 + BITRATE +\n    \u0027 -f segment -segment_time \u0027 + CHUNK_SECONDS + \u0027 \"\u0027 + outPattern + \u0027\" -y\u0027,\n    { timeout: 600000, stdio: \u0027pipe\u0027 }\n  );\n\n  const chunkFiles = fs.readdirSync(tmpDir)\n    .filter(f =\u003e f.startsWith(\u0027chunk_\u0027) \u0026\u0026 f.endsWith(\u0027.mp3\u0027))\n    .sort();\n\n  if (chunkFiles.length === 0) throw new Error(\u0027ffmpeg menghasilkan 0 chunk\u0027);\n  if (chunkFiles.length \u003e MAX_CHUNKS) {\n    throw new Error(\u0027Audio terlalu panjang: \u0027 + chunkFiles.length + \u0027 chunk, batas \u0027 +\n      MAX_CHUNKS + \u0027 (~\u0027 + (MAX_CHUNKS * CHUNK_SECONDS / 60).toFixed(0) + \u0027 menit max)\u0027);\n  }\n\n  const baseName = origName.replace(/\\.[^/.]+$/, \u0027\u0027);\n  chunkFiles.forEach((fname, idx) =\u003e {\n    const buf = fs.readFileSync(path.join(tmpDir, fname).replace(/\\\\/g, \u0027/\u0027));\n    out.push({\n      json: {\n        meeting_name:       item.json.meeting_name || \u0027\u0027,\n        originalFileName:   origName,\n        originalFileSizeMB: parseFloat(fileSizeMB),\n        chunk_index:        idx,\n        total_chunks:       chunkFiles.length\n      },\n      binary: {\n        recording: {\n          data:     buf.toString(\u0027base64\u0027),\n          mimeType: \u0027audio/mpeg\u0027,\n          fileName: baseName + \u0027_chunk\u0027 + String(idx).padStart(3, \u00270\u0027) + \u0027.mp3\u0027,\n          fileSize: buf.length\n        }\n      }\n    });\n  });\n} finally {\n  // Selalu bersihkan tmpDir, termasuk saat error\n  try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch(_) {}\n}\n\nreturn out;"
+                                     },
+                      "id":  "16ab9e48-0147-478e-8f8a-28ee1c5dbe3d",
+                      "name":  "Audio Conversion",
+                      "type":  "n8n-nodes-base.code",
+                      "typeVersion":  2,
+                      "position":  [
+                                       224,
+                                       -208
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "jsCode":  "const items = $input.all();\n\nif (items.length === 0) {\n  throw new Error(\u0027Merge Transcripts: tidak ada hasil dari Whisper\u0027);\n}\n\n// Ambil expected total_chunks dari Audio Conversion (semua chunk punya nilai sama)\nlet expectedTotal = null;\ntry { expectedTotal = $(\u0027Audio Conversion\u0027).first().json.total_chunks; } catch(_) {}\n\n// Validasi 1: jumlah hasil harus sesuai\nif (expectedTotal != null \u0026\u0026 items.length !== expectedTotal) {\n  throw new Error(\n    \u0027Jumlah hasil Whisper (\u0027 + items.length + \u0027) != jumlah chunk (\u0027 + expectedTotal + \u0027)\u0027\n  );\n}\n\n// Bangun data chunk dengan chunk_index via itemMatching dari Audio Conversion\nconst chunkData = [];\nfor (let i = 0; i \u003c items.length; i++) {\n  let chunkIdx = i; // fallback ke sequential index\n  try {\n    const acItem = $(\u0027Audio Conversion\u0027).itemMatching(i);\n    if (acItem \u0026\u0026 acItem.json != null \u0026\u0026 acItem.json.chunk_index != null) {\n      chunkIdx = acItem.json.chunk_index;\n    }\n  } catch(_) { /* gunakan fallback */ }\n\n  const raw = items[i].json;\n  const text = (raw \u0026\u0026 typeof raw.text === \u0027string\u0027) ? raw.text : \u0027\u0027;\n  chunkData.push({ idx: chunkIdx, text });\n}\n\n// Sort berdasarkan chunk_index\nchunkData.sort((a, b) =\u003e a.idx - b.idx);\n\n// Validasi 2: indices kontigu dari 0 sampai N-1\nfor (let i = 0; i \u003c chunkData.length; i++) {\n  if (chunkData[i].idx !== i) {\n    const got = chunkData.map(c =\u003e c.idx).join(\u0027,\u0027);\n    throw new Error(\u0027chunk_index tidak kontigu, expected \u0027 + i + \u0027, got [\u0027 + got + \u0027]\u0027);\n  }\n}\n\n// Validasi 3: tidak ada chunk kosong\nfor (const c of chunkData) {\n  if (!c.text || c.text.trim() === \u0027\u0027) {\n    throw new Error(\u0027Chunk \u0027 + c.idx + \u0027 menghasilkan transkrip kosong\u0027);\n  }\n}\n\nconst fullText = chunkData.map(c =\u003e c.text.trim()).join(\u0027 \u0027);\n\n// === Bangun request body Groq untuk Classify \u0026 Plan ===\n// (dipindah dari field jsonBody node HTTP untuk hindari konflik parser ekspresi n8n\n//  yang salah membaca urutan \"}}\" sebagai penutup ekspresi)\nlet meetingName = \u0027Tidak disebutkan\u0027;\ntry { meetingName = $(\u0027Upload Meeting Recording\u0027).first().json.meeting_name || \u0027Tidak disebutkan\u0027; } catch(_) {}\n\nconst classifySchema = {content_class:\"meeting\",meeting_type:\"standup|null\",session_type:\"interview|null\",content_category:\"philosophy|null\",content_subcategory:\"string|null\",should_process:true,confidence:0.95,ambiguous:false,ambiguity_reason:null,focus_instruction:\"panduan 1-2 kalimat\",key_focus:[\"aspek1\",\"aspek2\"],notion_db:\"meeting|one_on_one|content\",language:\"id\"};\n\nconst classifyPrompt = \u0027Kamu adalah classifier konten audio/video. Analisis transkrip berikut.\\n\\nTRANSKRIP:\\n\"\"\"\\n\u0027 + fullText + \u0027\\n\"\"\"\\n\\nNAMA FILE/MEETING: \u0027 + meetingName + \u0027\\n\\nTENTUKAN content_class - pilih SATU:\\n- \"meeting\": diskusi grup (2+ orang)\\n- \"one_on_one\": percakapan PRIVAT 2 orang\\n- \"non_meeting\": konten untuk dikonsumsi (podcast, YouTube, kuliah)\\n\\nEDGE CASE - 2 orang:\\n- Ada sinyal audiens -\u003e non_meeting\\n- Bersifat privat, evaluatif -\u003e one_on_one\\n\\nTIPE SPESIFIK: meeting: standup|client_meeting|retrospective|planning|brainstorm|all_hands | one_on_one: interview|counseling|client_pitch|performance_review|mentoring | non_meeting: philosophy|science|educational_interview|podcast|lecture|comedy|casual_discussion\\n\\nSHOULD_PROCESS = false HANYA jika transkrip kosong atau noise murni.\\n\\nKEMBALIKAN JSON MURNI:\u0027 + JSON.stringify(classifySchema);\n\nconst classify_body = {model:\u0027vertex_ai/openai/gpt-oss-120b-maas\u0027,messages:[{role:\u0027user\u0027,content:classifyPrompt}],temperature:0.1,max_tokens:1500,response_format:{type:\u0027json_object\u0027}};\n\nreturn [{\n  json: {\n    text: fullText,\n    total_chunks: chunkData.length,\n    merge_status: \u0027complete\u0027,\n    classify_body: classify_body\n  },\n  pairedItem: { item: 0 }\n}];"
+                                     },
+                      "id":  "1fe7ca69-ada2-492d-bf35-515e8e3234ec",
+                      "name":  "Merge Transcripts",
+                      "type":  "n8n-nodes-base.code",
+                      "typeVersion":  2,
+                      "position":  [
+                                       336,
+                                       160
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "rules":  {
+                                                       "values":  [
+                                                                      {
+                                                                          "conditions":  {
+                                                                                             "options":  {
+                                                                                                             "caseSensitive":  true,
+                                                                                                             "leftValue":  "",
+                                                                                                             "typeValidation":  "strict",
+                                                                                                             "version":  2
+                                                                                                         },
+                                                                                             "combinator":  "and",
+                                                                                             "conditions":  [
+                                                                                                                {
+                                                                                                                    "id":  "src0c0",
+                                                                                                                    "leftValue":  "={{ Object.keys($binary || {}).includes(\u0027recording\u0027) }}",
+                                                                                                                    "operator":  {
+                                                                                                                                     "type":  "boolean",
+                                                                                                                                     "operation":  "true",
+                                                                                                                                     "singleValue":  true
+                                                                                                                                 },
+                                                                                                                    "rightValue":  ""
+                                                                                                                }
+                                                                                                            ]
+                                                                                         },
+                                                                          "renameOutput":  true,
+                                                                          "outputKey":  "Upload"
+                                                                      },
+                                                                      {
+                                                                          "conditions":  {
+                                                                                             "options":  {
+                                                                                                             "caseSensitive":  true,
+                                                                                                             "leftValue":  "",
+                                                                                                             "typeValidation":  "strict",
+                                                                                                             "version":  2
+                                                                                                         },
+                                                                                             "combinator":  "and",
+                                                                                             "conditions":  [
+                                                                                                                {
+                                                                                                                    "id":  "src1c0",
+                                                                                                                    "leftValue":  "={{ ($json.drive_link || \u0027\u0027).trim() }}",
+                                                                                                                    "operator":  {
+                                                                                                                                     "type":  "string",
+                                                                                                                                     "operation":  "isNotEmpty",
+                                                                                                                                     "singleValue":  true
+                                                                                                                                 },
+                                                                                                                    "rightValue":  ""
+                                                                                                                }
+                                                                                                            ]
+                                                                                         },
+                                                                          "renameOutput":  true,
+                                                                          "outputKey":  "Google Drive"
+                                                                      }
+                                                                  ]
+                                                   },
+                                         "options":  {
+                                                         "fallbackOutput":  "extra",
+                                                         "renameFallbackOutput":  "Error - Tidak Ada Input"
+                                                     }
+                                     },
+                      "id":  "865fea45-363b-4fe9-90d2-4e184775aa13",
+                      "name":  "Switch - Sumber Input",
+                      "type":  "n8n-nodes-base.switch",
+                      "typeVersion":  3,
+                      "position":  [
+                                       -544,
+                                       0
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "jsCode":  "const driveLink = ($json.drive_link || \u0027\u0027).trim();\nconst meetingName = $json.meeting_name || \u0027\u0027;\n\nconst patterns = [\n  /\\/d\\/([a-zA-Z0-9_-]{20,})/,\n  /[?\u0026]id=([a-zA-Z0-9_-]{20,})/,\n];\n\nlet fileId = null;\nfor (const pattern of patterns) {\n  const match = driveLink.match(pattern);\n  if (match) { fileId = match[1]; break; }\n}\n\nif (!fileId) {\n  throw new Error(\u0027Format link Google Drive tidak dikenali. Gunakan link Share: klik kanan file \u003e Share \u003e Copy link.\u0027);\n}\n\nconst downloadUrl = \u0027https://drive.usercontent.google.com/download?id=\u0027 + fileId + \u0027\u0026export=download\u0026confirm=t\u0026authuser=0\u0027;\n\nreturn [{ json: { file_id: fileId, download_url: downloadUrl, meeting_name: meetingName } }];"
+                                     },
+                      "id":  "1b490ab6-080b-46ca-9111-ab7973f68dc7",
+                      "name":  "Extract Drive ID",
+                      "type":  "n8n-nodes-base.code",
+                      "typeVersion":  2,
+                      "position":  [
+                                       -544,
+                                       208
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "url":  "={{ $json.download_url }}",
+                                         "options":  {
+                                                         "redirect":  {
+                                                                          "redirect":  {
+                                                                                           "maxRedirects":  10
+                                                                                       }
+                                                                      },
+                                                         "response":  {
+                                                                          "response":  {
+                                                                                           "responseFormat":  "file",
+                                                                                           "outputPropertyName":  "recording"
+                                                                                       }
+                                                                      },
+                                                         "timeout":  120000
+                                                     }
+                                     },
+                      "id":  "c24cd4db-4a04-44ae-8645-d501f4f1cab4",
+                      "name":  "HTTP Download - Google Drive",
+                      "type":  "n8n-nodes-base.httpRequest",
+                      "typeVersion":  4.4,
+                      "position":  [
+                                       -304,
+                                       208
+                                   ],
+                      "retryOnFail":  true,
+                      "maxTries":  4,
+                      "waitBetweenTries":  3000
+                  },
+                  {
+                      "parameters":  {
+                                         "jsCode":  "const recording = $binary.recording || $binary.data;\n\nif (!recording) {\n  throw new Error(\u0027Download dari Google Drive gagal. Tidak ada data yang diterima.\u0027);\n}\n\nif (recording.mimeType \u0026\u0026 recording.mimeType.includes(\u0027text/html\u0027)) {\n  throw new Error(\u0027Google Drive mengembalikan halaman error. Pastikan file di-share dengan setting \"Anyone with the link can view\".\u0027);\n}\n\nconst meetingName = $(\u0027Extract Drive ID\u0027).first().json.meeting_name || \u0027\u0027;\n\nreturn [{ json: { meeting_name: meetingName }, binary: { recording: recording } }];"
+                                     },
+                      "id":  "4049e233-5d40-407a-a15d-33abf2916102",
+                      "name":  "Normalize Input",
+                      "type":  "n8n-nodes-base.code",
+                      "typeVersion":  2,
+                      "position":  [
+                                       -64,
+                                       208
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "method":  "POST",
+                                         "url":  "https://api.koboillm.com/v1/chat/completions",
+                                         "authentication":  "genericCredentialType",
+                                         "genericAuthType":  "httpHeaderAuth",
+                                         "sendBody":  true,
+                                         "specifyBody":  "json",
+                                         "jsonBody":  "={{ $json.classify_body }}",
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "id":  "a5deab8b-6fc5-4c1e-b9cc-72668811246a",
+                      "name":  "Classify \u0026 Plan",
+                      "type":  "n8n-nodes-base.httpRequest",
+                      "typeVersion":  4.4,
+                      "position":  [
+                                       448,
+                                       32
+                                   ],
+                      "retryOnFail":  true,
+                      "waitBetweenTries":  5000,
+                      "maxTries":  3,
+                      "onError":  "stopWorkflow"
+                  },
+                  {
+                      "parameters":  {
+                                         "method":  "POST",
+                                         "url":  "https://api.koboillm.com/v1/chat/completions",
+                                         "authentication":  "genericCredentialType",
+                                         "genericAuthType":  "httpHeaderAuth",
+                                         "sendBody":  true,
+                                         "specifyBody":  "json",
+                                         "jsonBody":  "={{ $json.extract_body }}",
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "id":  "919c5a30-d979-43ac-96e3-04202cb32006",
+                      "name":  "Extract - Meeting",
+                      "type":  "n8n-nodes-base.httpRequest",
+                      "typeVersion":  4.4,
+                      "position":  [
+                                       1120,
+                                       -240
+                                   ],
+                      "retryOnFail":  true,
+                      "waitBetweenTries":  5000,
+                      "maxTries":  3,
+                      "onError":  "stopWorkflow"
+                  },
+                  {
+                      "parameters":  {
+                                         "method":  "POST",
+                                         "url":  "https://api.koboillm.com/v1/chat/completions",
+                                         "authentication":  "genericCredentialType",
+                                         "genericAuthType":  "httpHeaderAuth",
+                                         "sendBody":  true,
+                                         "specifyBody":  "json",
+                                         "jsonBody":  "={{ $json.extract_body }}",
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "id":  "dee24e9c-2748-4f71-8250-9fa0b43b79f8",
+                      "name":  "Extract - One on One",
+                      "type":  "n8n-nodes-base.httpRequest",
+                      "typeVersion":  4.4,
+                      "position":  [
+                                       1120,
+                                       32
+                                   ],
+                      "retryOnFail":  true,
+                      "waitBetweenTries":  5000,
+                      "maxTries":  3,
+                      "onError":  "stopWorkflow"
+                  },
+                  {
+                      "parameters":  {
+                                         "method":  "POST",
+                                         "url":  "https://api.koboillm.com/v1/chat/completions",
+                                         "authentication":  "genericCredentialType",
+                                         "genericAuthType":  "httpHeaderAuth",
+                                         "sendBody":  true,
+                                         "specifyBody":  "json",
+                                         "jsonBody":  "={{ $json.extract_body }}",
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "id":  "8b491b42-4c1e-45e0-a37e-e6742d7c2d35",
+                      "name":  "Extract - Non Meeting",
+                      "type":  "n8n-nodes-base.httpRequest",
+                      "typeVersion":  4.4,
+                      "position":  [
+                                       1120,
+                                       192
+                                   ],
+                      "retryOnFail":  true,
+                      "waitBetweenTries":  5000,
+                      "maxTries":  3,
+                      "onError":  "stopWorkflow"
+                  },
+                  {
+                      "parameters":  {
+                                         "jsCode":  "const d = $(\u0027Parse AI Response\u0027).first().json;\nconst notionUrl = \u0027\u0027;\nconst rawEmails = ($(\u0027Upload Meeting Recording\u0027).first().json?.email_penerima || \u0027\u0027).trim();\nconst to = rawEmails.split(\u0027,\u0027).map(e =\u003e e.trim()).filter(Boolean);\nif (to.length === 0) return [];\n\nconst lang = $(\u0027Parse Classifier Output\u0027).first().json?.language || \u0027id\u0027;\nconst title = d.meeting_title || \u0027Meeting Notes\u0027;\nconst date = d.date || \u0027-\u0027;\nconst participants = Array.isArray(d.participants) ? d.participants.join(\u0027, \u0027) : (d.participants || \u0027-\u0027);\n\nconst renderList = (arr, fn) =\u003e Array.isArray(arr) \u0026\u0026 arr.length ? arr.map(fn).join(\u0027\u0027) : \u0027\u0027;\nconst decisions = renderList(d.key_decisions, k =\u003e \u0027\u003cli\u003e\u0027 + (typeof k === \u0027string\u0027 ? k : (k.decision || k.description || JSON.stringify(k))) + \u0027\u003c/li\u003e\u0027);\nconst actions = renderList(d.action_items, a =\u003e {\n  if (typeof a === \u0027string\u0027) return \u0027\u003cli\u003e\u0027 + a + \u0027\u003c/li\u003e\u0027;\n  const task = a.task || a.description || a.item || JSON.stringify(a);\n  const meta = [a.assignee \u0026\u0026 \u0027PIC: \u0027 + a.assignee, a.owner \u0026\u0026 \u0027PIC: \u0027 + a.owner, a.deadline \u0026\u0026 \u0027Deadline: \u0027 + a.deadline, a.due_date \u0026\u0026 \u0027Due: \u0027 + a.due_date].filter(Boolean).join(\u0027 · \u0027);\n  return \u0027\u003cli\u003e\u003cstrong\u003e\u0027 + task + \u0027\u003c/strong\u003e\u0027 + (meta ? \u0027\u003cbr\u003e\u003csmall style=\"color:#64748b\"\u003e\u0027 + meta + \u0027\u003c/small\u003e\u0027 : \u0027\u0027) + \u0027\u003c/li\u003e\u0027;\n});\n\nconst introText = lang === \u0027id\u0027\n  ? \u0027Halo, berikut adalah notulen otomatis untuk meeting \u003cb\u003e\\\u0027\u0027 + title + \u0027\\\u0027\u003c/b\u003e pada \u0027 + date + \u0027. File teks lengkap tersedia di lampiran email ini.\u0027\n  : \u0027Hello, here are the automated meeting notes for \u003cb\u003e\\\u0027\u0027 + title + \u0027\\\u0027\u003c/b\u003e on \u0027 + date + \u0027. The full plain-text version is attached to this email.\u0027;\n\nconst html = \u0027\u003c!DOCTYPE html\u003e\u003chtml\u003e\u003chead\u003e\u003cmeta charset=\"utf-8\"\u003e\u003c/head\u003e\u003cbody style=\"font-family:-apple-system,sans-serif;max-width:600px;margin:0 auto;padding:24px;color:#1e293b\"\u003e\u0027\n  + \u0027\u003cp style=\"margin-bottom:24px;line-height:1.6;color:#475569\"\u003e\u0027 + introText + \u0027\u003c/p\u003e\u0027\n  + \u0027\u003cdiv style=\"background:#f8fafc;border-left:4px solid #3b82f6;padding:16px 20px;margin-bottom:24px;border-radius:0 8px 8px 0\"\u003e\u003ch1 style=\"margin:0 0 8px;font-size:22px\"\u003e\u0027 + title + \u0027\u003c/h1\u003e\u003cp style=\"margin:0;color:#64748b;font-size:14px\"\u003e\u0027 + date + \u0027 · \u0027 + participants + \u0027\u003c/p\u003e\u003c/div\u003e\u0027\n  + \u0027\u003ch3\u003eRingkasan Eksekutif\u003c/h3\u003e\u003cp style=\"line-height:1.6\"\u003e\u0027 + (d.executive_summary || \u0027-\u0027) + \u0027\u003c/p\u003e\u0027\n  + (decisions ? \u0027\u003ch3\u003eKeputusan\u003c/h3\u003e\u003cul\u003e\u0027 + decisions + \u0027\u003c/ul\u003e\u0027 : \u0027\u0027)\n  + (actions ? \u0027\u003ch3\u003eAction Items\u003c/h3\u003e\u003cul\u003e\u0027 + actions + \u0027\u003c/ul\u003e\u0027 : \u0027\u0027)\n  + (notionUrl ? \u0027\u003cdiv style=\"margin-top:24px;padding:16px;background:#eff6ff;border-radius:8px\"\u003e\u003ca href=\"\u0027 + notionUrl + \u0027\" style=\"color:#3b82f6;font-weight:600;text-decoration:none\"\u003eLihat Notulen Lengkap di Notion\u003c/a\u003e\u003c/div\u003e\u0027 : \u0027\u0027)\n  + \u0027\u003chr style=\"margin-top:32px;border:none;border-top:1px solid #e2e8f0\"\u003e\u003cp style=\"color:#94a3b8;font-size:12px;text-align:center\"\u003eDibuat otomatis oleh Meeting Notes AI · File .md terlampir\u003c/p\u003e\u0027\n  + \u0027\u003c/body\u003e\u003c/html\u003e\u0027;\n\nconst lines = [];\nlines.push(\u0027NOTULEN MEETING\u0027);\nlines.push(\u0027===============\u0027);\nlines.push(\u0027\u0027);\nlines.push(\u0027Judul    : \u0027 + title);\nlines.push(\u0027Tanggal  : \u0027 + date);\nlines.push(\u0027Peserta  : \u0027 + participants);\nlines.push(\u0027\u0027);\nlines.push(\u0027\u0027);\nlines.push(\u0027RINGKASAN EKSEKUTIF\u0027);\nlines.push(\u0027-------------------\u0027);\nlines.push(d.executive_summary || \u0027-\u0027);\nlines.push(\u0027\u0027);\n\nif (Array.isArray(d.discussion_topics) \u0026\u0026 d.discussion_topics.length) {\n  lines.push(\u0027\u0027);\n  lines.push(\u0027TOPIK DISKUSI\u0027);\n  lines.push(\u0027-------------\u0027);\n  d.discussion_topics.forEach((t, i) =\u003e {\n    const topic = typeof t === \u0027string\u0027 ? t : (t.topic || JSON.stringify(t));\n    const summary = (typeof t === \u0027object\u0027 \u0026\u0026 t.summary) ? t.summary : \u0027\u0027;\n    lines.push((i + 1) + \u0027. \u0027 + topic);\n    if (summary) lines.push(\u0027   \u0027 + summary);\n    lines.push(\u0027\u0027);\n  });\n}\n\nif (Array.isArray(d.key_decisions) \u0026\u0026 d.key_decisions.length) {\n  lines.push(\u0027\u0027);\n  lines.push(\u0027KEPUTUSAN\u0027);\n  lines.push(\u0027---------\u0027);\n  d.key_decisions.forEach((k, i) =\u003e {\n    const t = typeof k === \u0027string\u0027 ? k : (k.decision || k.description || JSON.stringify(k));\n    lines.push((i + 1) + \u0027. \u0027 + t);\n  });\n  lines.push(\u0027\u0027);\n}\n\nif (Array.isArray(d.action_items) \u0026\u0026 d.action_items.length) {\n  lines.push(\u0027\u0027);\n  lines.push(\u0027ACTION ITEMS\u0027);\n  lines.push(\u0027------------\u0027);\n  d.action_items.forEach(a =\u003e {\n    if (typeof a === \u0027string\u0027) { lines.push(\u0027[ ] \u0027 + a); return; }\n    const task = a.task || a.description || a.item || JSON.stringify(a);\n    const assignee = a.assignee || a.owner || null;\n    const due = a.deadline || a.due_date || null;\n    const meta = [assignee, due].filter(Boolean).join(\u0027 / \u0027);\n    lines.push(\u0027[ ] \u0027 + task + (meta ? \u0027  --  \u0027 + meta : \u0027\u0027));\n  });\n  lines.push(\u0027\u0027);\n}\n\nif (Array.isArray(d.open_questions) \u0026\u0026 d.open_questions.length) {\n  lines.push(\u0027\u0027);\n  lines.push(\u0027PERTANYAAN TERBUKA\u0027);\n  lines.push(\u0027------------------\u0027);\n  d.open_questions.forEach(q =\u003e lines.push(\u0027- \u0027 + (typeof q === \u0027string\u0027 ? q : JSON.stringify(q))));\n  lines.push(\u0027\u0027);\n}\n\nlines.push(\u0027\u0027);\nlines.push(\u0027Dibuat otomatis oleh Meeting Notes AI\u0027);\n\nconst mdContent = lines.join(\u0027\\n\u0027);\nconst filename = \u0027notulen-\u0027 + title.toLowerCase().replace(/[^a-z0-9]+/g, \u0027-\u0027).replace(/^-+|-+$/g, \u0027\u0027).slice(0, 40) + \u0027.md\u0027;\n\nreturn [{\n  json: { to: to.join(\u0027, \u0027), subject: \u0027Notulen Meeting: \u0027 + title, html },\n  binary: { notulen: { data: Buffer.from(mdContent).toString(\u0027base64\u0027), mimeType: \u0027text/markdown; charset=utf-8\u0027, fileName: filename } }\n}];"
+                                     },
+                      "id":  "2a28b3ad-8726-410b-8a02-1d83d9e0ac44",
+                      "name":  "Build Email - Meeting",
+                      "type":  "n8n-nodes-base.code",
+                      "typeVersion":  2,
+                      "position":  [
+                                       2672,
+                                       -256
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "jsCode":  "const d = $(\u0027Parse - One on One\u0027).first().json;\nconst notionUrl = \u0027\u0027;\nconst rawEmails = ($(\u0027Upload Meeting Recording\u0027).first().json?.email_penerima || \u0027\u0027).trim();\nconst to = rawEmails.split(\u0027,\u0027).map(e =\u003e e.trim()).filter(Boolean);\nif (to.length === 0) return [];\n\nconst lang = $(\u0027Parse Classifier Output\u0027).first().json?.language || \u0027id\u0027;\nconst title = d.content_title || d.meeting_title || \u0027One on One\u0027;\nconst date = d.date || \u0027-\u0027;\nconst personAStr = d.person_a ? (d.person_a.name || \u0027-\u0027) + (d.person_a.role ? \u0027 (\u0027 + d.person_a.role + \u0027)\u0027 : \u0027\u0027) : null;\nconst personBStr = d.person_b ? (d.person_b.name || \u0027-\u0027) + (d.person_b.role ? \u0027 (\u0027 + d.person_b.role + \u0027)\u0027 : \u0027\u0027) : null;\nconst participants = Array.isArray(d.participants) ? d.participants.join(\u0027, \u0027) : (d.participants || [personAStr, personBStr].filter(Boolean).join(\u0027, \u0027) || \u0027-\u0027);\n\nconst renderList = (arr, fn) =\u003e Array.isArray(arr) \u0026\u0026 arr.length ? arr.map(fn).join(\u0027\u0027) : \u0027\u0027;\nconst decisions = renderList(d.key_decisions, k =\u003e \u0027\u003cli\u003e\u0027 + (typeof k === \u0027string\u0027 ? k : (k.decision || k.description || JSON.stringify(k))) + \u0027\u003c/li\u003e\u0027);\nconst actions = renderList(d.action_items, a =\u003e {\n  if (typeof a === \u0027string\u0027) return \u0027\u003cli\u003e\u0027 + a + \u0027\u003c/li\u003e\u0027;\n  const task = a.task || a.description || a.item || JSON.stringify(a);\n  const meta = [a.assignee \u0026\u0026 \u0027PIC: \u0027 + a.assignee, a.owner \u0026\u0026 \u0027PIC: \u0027 + a.owner, a.deadline \u0026\u0026 \u0027Deadline: \u0027 + a.deadline, a.due_date \u0026\u0026 \u0027Due: \u0027 + a.due_date].filter(Boolean).join(\u0027 · \u0027);\n  return \u0027\u003cli\u003e\u003cstrong\u003e\u0027 + task + \u0027\u003c/strong\u003e\u0027 + (meta ? \u0027\u003cbr\u003e\u003csmall style=\"color:#64748b\"\u003e\u0027 + meta + \u0027\u003c/small\u003e\u0027 : \u0027\u0027) + \u0027\u003c/li\u003e\u0027;\n});\n\nconst introText = lang === \u0027id\u0027\n  ? \u0027Halo, berikut adalah notulen otomatis untuk sesi 1-on-1 \u003cb\u003e\\\u0027\u0027 + title + \u0027\\\u0027\u003c/b\u003e pada \u0027 + date + \u0027. File teks lengkap tersedia di lampiran.\u0027\n  : \u0027Hello, here are the automated notes for the 1-on-1 session \u003cb\u003e\\\u0027\u0027 + title + \u0027\\\u0027\u003c/b\u003e on \u0027 + date + \u0027. Full text is attached.\u0027;\n\nconst html = \u0027\u003c!DOCTYPE html\u003e\u003chtml\u003e\u003chead\u003e\u003cmeta charset=\"utf-8\"\u003e\u003c/head\u003e\u003cbody style=\"font-family:-apple-system,sans-serif;max-width:600px;margin:0 auto;padding:24px;color:#1e293b\"\u003e\u0027\n  + \u0027\u003cp style=\"margin-bottom:24px;line-height:1.6;color:#475569\"\u003e\u0027 + introText + \u0027\u003c/p\u003e\u0027\n  + \u0027\u003cdiv style=\"background:#f8fafc;border-left:4px solid #3b82f6;padding:16px 20px;margin-bottom:24px;border-radius:0 8px 8px 0\"\u003e\u003ch1 style=\"margin:0 0 8px;font-size:22px\"\u003e\u0027 + title + \u0027\u003c/h1\u003e\u003cp style=\"margin:0;color:#64748b;font-size:14px\"\u003e\u0027 + date + \u0027 · \u0027 + participants + \u0027\u003c/p\u003e\u003c/div\u003e\u0027\n  + \u0027\u003ch3\u003eRingkasan\u003c/h3\u003e\u003cp style=\"line-height:1.6\"\u003e\u0027 + (d.executive_summary || \u0027-\u0027) + \u0027\u003c/p\u003e\u0027\n  + (decisions ? \u0027\u003ch3\u003eKeputusan\u003c/h3\u003e\u003cul\u003e\u0027 + decisions + \u0027\u003c/ul\u003e\u0027 : \u0027\u0027)\n  + (actions ? \u0027\u003ch3\u003eAction Items\u003c/h3\u003e\u003cul\u003e\u0027 + actions + \u0027\u003c/ul\u003e\u0027 : \u0027\u0027)\n  + (notionUrl ? \u0027\u003cdiv style=\"margin-top:24px;padding:16px;background:#eff6ff;border-radius:8px\"\u003e\u003ca href=\"\u0027 + notionUrl + \u0027\" style=\"color:#3b82f6;font-weight:600;text-decoration:none\"\u003eLihat Notulen Lengkap di Notion\u003c/a\u003e\u003c/div\u003e\u0027 : \u0027\u0027)\n  + \u0027\u003chr style=\"margin-top:32px;border:none;border-top:1px solid #e2e8f0\"\u003e\u003cp style=\"color:#94a3b8;font-size:12px;text-align:center\"\u003eDibuat otomatis oleh Meeting Notes AI · File .md terlampir\u003c/p\u003e\u0027\n  + \u0027\u003c/body\u003e\u003c/html\u003e\u0027;\n\nconst lines = [];\nlines.push(\u0027NOTULEN SESI 1-ON-1\u0027);\nlines.push(\u0027====================\u0027);\nlines.push(\u0027\u0027);\nlines.push(\u0027Judul    : \u0027 + title);\nlines.push(\u0027Tanggal  : \u0027 + date);\nif (personAStr) lines.push(\u0027Person A : \u0027 + personAStr);\nif (personBStr) lines.push(\u0027Person B : \u0027 + personBStr);\nlines.push(\u0027\u0027);\nlines.push(\u0027\u0027);\nlines.push(\u0027RINGKASAN EKSEKUTIF\u0027);\nlines.push(\u0027-------------------\u0027);\nlines.push(d.executive_summary || \u0027-\u0027);\nlines.push(\u0027\u0027);\n\nif (Array.isArray(d.key_topics) \u0026\u0026 d.key_topics.length) {\n  lines.push(\u0027\u0027);\n  lines.push(\u0027TOPIK UTAMA\u0027);\n  lines.push(\u0027-----------\u0027);\n  d.key_topics.forEach((t, i) =\u003e lines.push((i + 1) + \u0027. \u0027 + (typeof t === \u0027string\u0027 ? t : JSON.stringify(t))));\n  lines.push(\u0027\u0027);\n}\n\nif (Array.isArray(d.highlights) \u0026\u0026 d.highlights.length) {\n  lines.push(\u0027\u0027);\n  lines.push(\u0027HIGHLIGHTS\u0027);\n  lines.push(\u0027----------\u0027);\n  d.highlights.forEach(h =\u003e lines.push(\u0027- \u0027 + (typeof h === \u0027string\u0027 ? h : JSON.stringify(h))));\n  lines.push(\u0027\u0027);\n}\n\nif (d.assessment) {\n  lines.push(\u0027\u0027);\n  lines.push(\u0027ASSESSMENT\u0027);\n  lines.push(\u0027----------\u0027);\n  lines.push(d.assessment);\n  lines.push(\u0027\u0027);\n}\n\nif (Array.isArray(d.action_items) \u0026\u0026 d.action_items.length) {\n  lines.push(\u0027\u0027);\n  lines.push(\u0027ACTION ITEMS\u0027);\n  lines.push(\u0027------------\u0027);\n  d.action_items.forEach(a =\u003e {\n    if (typeof a === \u0027string\u0027) { lines.push(\u0027[ ] \u0027 + a); return; }\n    const task = a.task || a.description || a.item || JSON.stringify(a);\n    const assignee = a.assignee || a.owner || null;\n    const due = a.deadline || a.due_date || null;\n    const meta = [assignee, due].filter(Boolean).join(\u0027 / \u0027);\n    lines.push(\u0027[ ] \u0027 + task + (meta ? \u0027  --  \u0027 + meta : \u0027\u0027));\n  });\n  lines.push(\u0027\u0027);\n}\n\nif (d.follow_up) {\n  lines.push(\u0027\u0027);\n  lines.push(\u0027FOLLOW UP\u0027);\n  lines.push(\u0027---------\u0027);\n  lines.push(d.follow_up);\n  lines.push(\u0027\u0027);\n}\n\nlines.push(\u0027\u0027);\nlines.push(\u0027Dibuat otomatis oleh Meeting Notes AI\u0027);\n\nconst mdContent = lines.join(\u0027\\n\u0027);\nconst filename = \u0027notulen-1on1-\u0027 + title.toLowerCase().replace(/[^a-z0-9]+/g, \u0027-\u0027).replace(/^-+|-+$/g, \u0027\u0027).slice(0, 40) + \u0027.md\u0027;\n\nreturn [{\n  json: { to: to.join(\u0027, \u0027), subject: \u0027Notulen 1-on-1: \u0027 + title, html },\n  binary: { notulen: { data: Buffer.from(mdContent).toString(\u0027base64\u0027), mimeType: \u0027text/markdown; charset=utf-8\u0027, fileName: filename } }\n}];"
+                                     },
+                      "id":  "4cf15c27-fa05-49b4-a10c-c31bde41a25d",
+                      "name":  "Build Email - One on One",
+                      "type":  "n8n-nodes-base.code",
+                      "typeVersion":  2,
+                      "position":  [
+                                       2672,
+                                       0
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "jsCode":  "const d = $(\u0027Parse - Non Meeting\u0027).first().json;\nconst notionUrl = \u0027\u0027;\nconst rawEmails = ($(\u0027Upload Meeting Recording\u0027).first().json?.email_penerima || \u0027\u0027).trim();\nconst to = rawEmails.split(\u0027,\u0027).map(e =\u003e e.trim()).filter(Boolean);\nif (to.length === 0) return [];\n\nconst lang = $(\u0027Parse Classifier Output\u0027).first().json?.language || \u0027id\u0027;\nconst title = d.content_title || d.meeting_title || \u0027Catatan Konten\u0027;\nconst date = d.date || \u0027-\u0027;\nconst participants = Array.isArray(d.participants) ? d.participants.join(\u0027, \u0027) : (d.participants || \u0027-\u0027);\nconst summary = d.executive_summary || d.summary || d.description || \u0027-\u0027;\nconst dn = d.detailed_notes || {};\n\nconst renderList = (arr, fn) =\u003e Array.isArray(arr) \u0026\u0026 arr.length ? arr.map(fn).join(\u0027\u0027) : \u0027\u0027;\nconst keyPoints = renderList(dn.key_points || d.key_points || d.main_points || d.highlights, k =\u003e \u0027\u003cli\u003e\u0027 + (typeof k === \u0027string\u0027 ? k : (k.point || k.text || JSON.stringify(k))) + \u0027\u003c/li\u003e\u0027);\n\nconst introText = lang === \u0027id\u0027\n  ? \u0027Halo, berikut adalah catatan otomatis untuk \u003cb\u003e\\\u0027\u0027 + title + \u0027\\\u0027\u003c/b\u003e. File teks lengkap tersedia di lampiran email ini.\u0027\n  : \u0027Hello, here are the automated notes for \u003cb\u003e\\\u0027\u0027 + title + \u0027\\\u0027\u003c/b\u003e. The full plain-text version is attached to this email.\u0027;\n\nconst html = \u0027\u003c!DOCTYPE html\u003e\u003chtml\u003e\u003chead\u003e\u003cmeta charset=\"utf-8\"\u003e\u003c/head\u003e\u003cbody style=\"font-family:-apple-system,sans-serif;max-width:600px;margin:0 auto;padding:24px;color:#1e293b\"\u003e\u0027\n  + \u0027\u003cp style=\"margin-bottom:24px;line-height:1.6;color:#475569\"\u003e\u0027 + introText + \u0027\u003c/p\u003e\u0027\n  + \u0027\u003cdiv style=\"background:#f8fafc;border-left:4px solid #8b5cf6;padding:16px 20px;margin-bottom:24px;border-radius:0 8px 8px 0\"\u003e\u003ch1 style=\"margin:0 0 8px;font-size:22px\"\u003e\u0027 + title + \u0027\u003c/h1\u003e\u003cp style=\"margin:0;color:#64748b;font-size:14px\"\u003e\u0027 + date + \u0027 · \u0027 + participants + \u0027\u003c/p\u003e\u003c/div\u003e\u0027\n  + \u0027\u003ch3\u003eRingkasan\u003c/h3\u003e\u003cp style=\"line-height:1.6\"\u003e\u0027 + summary + \u0027\u003c/p\u003e\u0027\n  + (keyPoints ? \u0027\u003ch3\u003ePoin Utama\u003c/h3\u003e\u003cul\u003e\u0027 + keyPoints + \u0027\u003c/ul\u003e\u0027 : \u0027\u0027)\n  + (notionUrl ? \u0027\u003cdiv style=\"margin-top:24px;padding:16px;background:#f5f3ff;border-radius:8px\"\u003e\u003ca href=\"\u0027 + notionUrl + \u0027\" style=\"color:#8b5cf6;font-weight:600;text-decoration:none\"\u003eLihat Catatan Lengkap di Notion\u003c/a\u003e\u003c/div\u003e\u0027 : \u0027\u0027)\n  + \u0027\u003chr style=\"margin-top:32px;border:none;border-top:1px solid #e2e8f0\"\u003e\u003cp style=\"color:#94a3b8;font-size:12px;text-align:center\"\u003eDibuat otomatis oleh Meeting Notes AI · File .md terlampir\u003c/p\u003e\u0027\n  + \u0027\u003c/body\u003e\u003c/html\u003e\u0027;\n\nconst lines = [];\nlines.push(\u0027CATATAN KONTEN\u0027);\nlines.push(\u0027==============\u0027);\nlines.push(\u0027\u0027);\nlines.push(\u0027Judul     : \u0027 + title);\nlines.push(\u0027Tanggal   : \u0027 + date);\nif (d.content_category) lines.push(\u0027Kategori  : \u0027 + d.content_category + (d.content_subcategory ? \u0027 / \u0027 + d.content_subcategory : \u0027\u0027));\nif (d.topic) lines.push(\u0027Topik     : \u0027 + d.topic + (d.sub_topic ? \u0027 / \u0027 + d.sub_topic : \u0027\u0027));\nlines.push(\u0027Pembicara : \u0027 + participants);\nif (d.moderator) lines.push(\u0027Moderator : \u0027 + d.moderator);\nlines.push(\u0027\u0027);\nlines.push(\u0027\u0027);\nlines.push(\u0027RINGKASAN\u0027);\nlines.push(\u0027---------\u0027);\nlines.push(summary);\nlines.push(\u0027\u0027);\n\nif (Array.isArray(dn.main_themes) \u0026\u0026 dn.main_themes.length) {\n  lines.push(\u0027\u0027);\n  lines.push(\u0027TEMA UTAMA\u0027);\n  lines.push(\u0027----------\u0027);\n  dn.main_themes.forEach((t, i) =\u003e lines.push((i + 1) + \u0027. \u0027 + (typeof t === \u0027string\u0027 ? t : JSON.stringify(t))));\n  lines.push(\u0027\u0027);\n}\n\nif (Array.isArray(dn.key_points) \u0026\u0026 dn.key_points.length) {\n  lines.push(\u0027\u0027);\n  lines.push(\u0027POIN PENTING\u0027);\n  lines.push(\u0027------------\u0027);\n  dn.key_points.forEach((p, i) =\u003e lines.push((i + 1) + \u0027. \u0027 + (typeof p === \u0027string\u0027 ? p : JSON.stringify(p))));\n  lines.push(\u0027\u0027);\n}\n\nif (Array.isArray(dn.notable_quotes) \u0026\u0026 dn.notable_quotes.length) {\n  lines.push(\u0027\u0027);\n  lines.push(\u0027KUTIPAN PENTING\u0027);\n  lines.push(\u0027---------------\u0027);\n  dn.notable_quotes.forEach(q =\u003e lines.push(\u0027\"\u0027 + (typeof q === \u0027string\u0027 ? q : JSON.stringify(q)) + \u0027\"\u0027));\n  lines.push(\u0027\u0027);\n}\n\nif (Array.isArray(dn.open_questions) \u0026\u0026 dn.open_questions.length) {\n  lines.push(\u0027\u0027);\n  lines.push(\u0027PERTANYAAN BELUM TERJAWAB\u0027);\n  lines.push(\u0027-------------------------\u0027);\n  dn.open_questions.forEach(q =\u003e lines.push(\u0027- \u0027 + (typeof q === \u0027string\u0027 ? q : JSON.stringify(q))));\n  lines.push(\u0027\u0027);\n}\n\nif (d.follow_up) {\n  lines.push(\u0027\u0027);\n  lines.push(\u0027FOLLOW UP\u0027);\n  lines.push(\u0027---------\u0027);\n  lines.push(d.follow_up);\n  lines.push(\u0027\u0027);\n}\n\nlines.push(\u0027\u0027);\nlines.push(\u0027Dibuat otomatis oleh Meeting Notes AI\u0027);\n\nconst mdContent = lines.join(\u0027\\n\u0027);\nconst filename = \u0027catatan-\u0027 + title.toLowerCase().replace(/[^a-z0-9]+/g, \u0027-\u0027).replace(/^-+|-+$/g, \u0027\u0027).slice(0, 40) + \u0027.md\u0027;\n\nreturn [{\n  json: { to: to.join(\u0027, \u0027), subject: \u0027Catatan: \u0027 + title, html },\n  binary: { notulen: { data: Buffer.from(mdContent).toString(\u0027base64\u0027), mimeType: \u0027text/markdown; charset=utf-8\u0027, fileName: filename } }\n}];"
+                                     },
+                      "id":  "cb305793-94e9-4c6f-b4b3-be442d678be6",
+                      "name":  "Build Email - Non Meeting",
+                      "type":  "n8n-nodes-base.code",
+                      "typeVersion":  2,
+                      "position":  [
+                                       2672,
+                                       160
+                                   ]
+                  },
+                  {
+                      "name":  "Send Email - Meeting",
+                      "type":  "n8n-nodes-base.emailSend",
+                      "typeVersion":  2,
+                      "position":  [
+                                       2928,
+                                       -256
+                                   ],
+                      "parameters":  {
+                                         "fromEmail":  "igedesatrya@gmail.com",
+                                         "toEmail":  "={{ $json.to }}",
+                                         "subject":  "={{ $json.subject }}",
+                                         "emailFormat":  "html",
+                                         "message":  "={{ $json.html }}",
+                                         "options":  {
+                                                         "attachments":  "notulen"
+                                                     }
+                                     },
+                      "id":  "4cd89cc8-d701-491e-9647-95bf3f40b74b",
+                      "webhookId":  "6ec02a69-4bf7-47ed-892d-04145e2db84d"
+                  },
+                  {
+                      "name":  "Send Email - One on One",
+                      "type":  "n8n-nodes-base.emailSend",
+                      "typeVersion":  2,
+                      "position":  [
+                                       2928,
+                                       0
+                                   ],
+                      "parameters":  {
+                                         "fromEmail":  "igedesatrya@gmail.com",
+                                         "toEmail":  "={{ $json.to }}",
+                                         "subject":  "={{ $json.subject }}",
+                                         "emailFormat":  "html",
+                                         "message":  "={{ $json.html }}",
+                                         "options":  {
+                                                         "attachments":  "notulen"
+                                                     }
+                                     },
+                      "id":  "f09e6cf9-f624-4ce9-ad9e-d23145eed2cb",
+                      "webhookId":  "8a7f9463-4b24-424c-b029-5066044ad362"
+                  },
+                  {
+                      "name":  "Send Email - Non Meeting",
+                      "type":  "n8n-nodes-base.emailSend",
+                      "typeVersion":  2,
+                      "position":  [
+                                       2928,
+                                       160
+                                   ],
+                      "parameters":  {
+                                         "fromEmail":  "igedesatrya@gmail.com",
+                                         "toEmail":  "={{ $json.to }}",
+                                         "subject":  "={{ $json.subject }}",
+                                         "emailFormat":  "html",
+                                         "message":  "={{ $json.html }}",
+                                         "options":  {
+                                                         "attachments":  "notulen"
+                                                     }
+                                     },
+                      "id":  "fc6072ee-74aa-4bdb-bee4-4e0690bd0737",
+                      "webhookId":  "39ed0c31-d055-4db4-92c3-c00a6321130a"
+                  }
+              ],
+    "connections":  {
+                        "Parse Classifier Output":  {
+                                                        "main":  [
+                                                                     [
+                                                                         {
+                                                                             "node":  "Router",
+                                                                             "type":  "main",
+                                                                             "index":  0
+                                                                         }
+                                                                     ]
+                                                                 ]
+                                                    },
+                        "Router":  {
+                                       "main":  [
+                                                    [
+
+                                                    ],
+                                                    [
+                                                        {
+                                                            "node":  "Extract - Meeting",
+                                                            "type":  "main",
+                                                            "index":  0
+                                                        }
+                                                    ],
+                                                    [
+                                                        {
+                                                            "node":  "Extract - One on One",
+                                                            "type":  "main",
+                                                            "index":  0
+                                                        }
+                                                    ],
+                                                    [
+                                                        {
+                                                            "node":  "Extract - Non Meeting",
+                                                            "type":  "main",
+                                                            "index":  0
+                                                        }
+                                                    ]
+                                                ]
+                                   },
+                        "Audio Conversion":  {
+                                                 "main":  [
+                                                              [
+                                                                  {
+                                                                      "node":  "Transcribe with Whisper",
+                                                                      "type":  "main",
+                                                                      "index":  0
+                                                                  }
+                                                              ]
+                                                          ]
+                                             },
+                        "Transcribe with Whisper":  {
+                                                        "main":  [
+                                                                     [
+                                                                         {
+                                                                             "node":  "Merge Transcripts",
+                                                                             "type":  "main",
+                                                                             "index":  0
+                                                                         }
+                                                                     ]
+                                                                 ]
+                                                    },
+                        "Upload Meeting Recording":  {
+                                                         "main":  [
+                                                                      [
+                                                                          {
+                                                                              "node":  "Switch - Sumber Input",
+                                                                              "type":  "main",
+                                                                              "index":  0
+                                                                          }
+                                                                      ]
+                                                                  ]
+                                                     },
+                        "Switch - Sumber Input":  {
+                                                      "main":  [
+                                                                   [
+                                                                       {
+                                                                           "node":  "Audio Conversion",
+                                                                           "type":  "main",
+                                                                           "index":  0
+                                                                       }
+                                                                   ],
+                                                                   [
+                                                                       {
+                                                                           "node":  "Extract Drive ID",
+                                                                           "type":  "main",
+                                                                           "index":  0
+                                                                       }
+                                                                   ]
+                                                               ]
+                                                  },
+                        "Extract Drive ID":  {
+                                                 "main":  [
+                                                              [
+                                                                  {
+                                                                      "node":  "HTTP Download - Google Drive",
+                                                                      "type":  "main",
+                                                                      "index":  0
+                                                                  }
+                                                              ]
+                                                          ]
+                                             },
+                        "HTTP Download - Google Drive":  {
+                                                             "main":  [
+                                                                          [
+                                                                              {
+                                                                                  "node":  "Normalize Input",
+                                                                                  "type":  "main",
+                                                                                  "index":  0
+                                                                              }
+                                                                          ]
+                                                                      ]
+                                                         },
+                        "Normalize Input":  {
+                                                "main":  [
+                                                             [
+                                                                 {
+                                                                     "node":  "Audio Conversion",
+                                                                     "type":  "main",
+                                                                     "index":  0
+                                                                 }
+                                                             ]
+                                                         ]
+                                            },
+                        "Merge Transcripts":  {
+                                                  "main":  [
+                                                               [
+                                                                   {
+                                                                       "node":  "Classify \u0026 Plan",
+                                                                       "type":  "main",
+                                                                       "index":  0
+                                                                   }
+                                                               ]
+                                                           ]
+                                              },
+                        "Classify \u0026 Plan":  {
+                                                     "main":  [
+                                                                  [
+                                                                      {
+                                                                          "node":  "Parse Classifier Output",
+                                                                          "type":  "main",
+                                                                          "index":  0
+                                                                      }
+                                                                  ]
+                                                              ]
+                                                 },
+                        "Extract - Meeting":  {
+                                                  "main":  [
+                                                               [
+                                                                   {
+                                                                       "node":  "Parse AI Response",
+                                                                       "type":  "main",
+                                                                       "index":  0
+                                                                   }
+                                                               ]
+                                                           ]
+                                              },
+                        "Extract - One on One":  {
+                                                     "main":  [
+                                                                  [
+                                                                      {
+                                                                          "node":  "Parse - One on One",
+                                                                          "type":  "main",
+                                                                          "index":  0
+                                                                      }
+                                                                  ]
+                                                              ]
+                                                 },
+                        "Extract - Non Meeting":  {
+                                                      "main":  [
+                                                                   [
+                                                                       {
+                                                                           "node":  "Parse - Non Meeting",
+                                                                           "type":  "main",
+                                                                           "index":  0
+                                                                       }
+                                                                   ]
+                                                               ]
+                                                  },
+                        "Build Email - Meeting":  {
+                                                      "main":  [
+                                                                   [
+                                                                       {
+                                                                           "node":  "Send Email - Meeting",
+                                                                           "type":  "main",
+                                                                           "index":  0
+                                                                       }
+                                                                   ]
+                                                               ]
+                                                  },
+                        "Build Email - One on One":  {
+                                                         "main":  [
+                                                                      [
+                                                                          {
+                                                                              "node":  "Send Email - One on One",
+                                                                              "type":  "main",
+                                                                              "index":  0
+                                                                          }
+                                                                      ]
+                                                                  ]
+                                                     },
+                        "Build Email - Non Meeting":  {
+                                                          "main":  [
+                                                                       [
+                                                                           {
+                                                                               "node":  "Send Email - Non Meeting",
+                                                                               "type":  "main",
+                                                                               "index":  0
+                                                                           }
+                                                                       ]
+                                                                   ]
+                                                      },
+                        "Parse AI Response":  {
+                                                  "main":  [
+                                                               [
+                                                                   {
+                                                                       "node":  "Build Email - Meeting",
+                                                                       "type":  "main",
+                                                                       "index":  0
+                                                                   }
+                                                               ]
+                                                           ]
+                                              },
+                        "Parse - One on One":  {
+                                                   "main":  [
+                                                                [
+                                                                    {
+                                                                        "node":  "Build Email - One on One",
+                                                                        "type":  "main",
+                                                                        "index":  0
+                                                                    }
+                                                                ]
+                                                            ]
+                                               },
+                        "Parse - Non Meeting":  {
+                                                    "main":  [
+                                                                 [
+                                                                     {
+                                                                         "node":  "Build Email - Non Meeting",
+                                                                         "type":  "main",
+                                                                         "index":  0
+                                                                     }
+                                                                 ]
+                                                             ]
+                                                }
+                    },
+    "settings":  {
+                     "executionOrder":  "v1",
+                     "binaryMode":  "separate",
+                     "timeSavedMode":  "fixed"
+                 },
+    "pinData":  {
+
+                }
+}
