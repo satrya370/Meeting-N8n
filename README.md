@@ -5,7 +5,7 @@ This package runs the **Meeting Notes — Main Pipeline** workflow on a VPS with
 ## Contents
 
 - `workflows/meeting-notes-main-pipeline.json` — sanitized workflow export; no API keys or n8n credentials are included.
-- `Dockerfile` — adds `ffmpeg`, required by the **Audio Conversion** Code node.
+- `Dockerfile` — adds static `ffmpeg`/`ffprobe` binaries, required by the **Audio Conversion** Code node. It doesn't depend on a package manager inside the n8n runtime image.
 - `docker-compose.yml` — n8n + PostgreSQL deployment.
 - `.env.example` — configuration template.
 
@@ -54,7 +54,7 @@ npm run down
 
 If your VPS already runs n8n with the IG Content Builder and Chromium, use the files made specifically for that stack instead of replacing its database or existing `n8n_data` directory.
 
-1. Copy `Dockerfile.meeting-notes` over the VPS `Dockerfile`. It preserves the existing IG template setup and adds `ffmpeg`.
+1. Copy `Dockerfile.meeting-notes` over the VPS `Dockerfile`. It preserves the existing IG template setup and copies static `ffmpeg`/`ffprobe` binaries without relying on the removed `apk` command.
 2. Copy `docker-compose.meeting-notes.override.yml` into the same directory as the existing `docker-compose.yml`.
 3. Create a server-only `.env` entry: `GROQ_API_KEY=...`.
 4. Copy `workflows/meeting-notes-main-pipeline.json` to `./workflows/` on the VPS.

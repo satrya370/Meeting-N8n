@@ -1,10 +1,15 @@
+FROM mwader/static-ffmpeg:6.0 AS ffmpeg
+
 FROM n8nio/n8n:latest
 
 USER root
 
-# Existing IG Content Builder dependencies plus ffmpeg for Meeting Notes audio conversion.
-RUN apk add --no-cache ffmpeg \
-    && npm install -g xlsx docxtemplater pizzip
+# n8n 2.x removes apk-tools from its runtime image. Copy static binaries instead.
+COPY --from=ffmpeg /ffmpeg /usr/local/bin/ffmpeg
+COPY --from=ffmpeg /ffprobe /usr/local/bin/ffprobe
+
+# Existing IG Content Builder dependencies.
+RUN npm install -g xlsx docxtemplater pizzip
 
 ENV PUPPETEER_SKIP_DOWNLOAD=true \
     CHROMIUM_WS_ENDPOINT=ws://chromium:3000
@@ -16,4 +21,3 @@ USER node
 
 RUN cd /home/node/ig-templates && npm install --omit=dev \
     && cd /home/node/ig-templates-demo && npm install --omit=dev
-
