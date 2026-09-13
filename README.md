@@ -4,12 +4,14 @@ This package runs the **Meeting Notes — Main Pipeline** workflow on a VPS with
 
 ## Contents
 
-- `workflows/meeting-notes-main-pipeline.json` — sanitized workflow export; no API keys or n8n credentials are included.
+- `workflows/meeting-notes-main-pipeline.json` — sanitized workflow export; it contains credential references only, never credential values.
 - `Dockerfile` — adds static `ffmpeg`/`ffprobe` binaries, required by the **Audio Conversion** Code node. It doesn't depend on a package manager inside the n8n runtime image.
 - `docker-compose.yml` — n8n + PostgreSQL deployment.
 - `.env.example` — configuration template.
 
 ## VPS deployment
+
+Untuk stack VPS existing, gunakan `Dockerfile.meeting-notes` dan `docker-compose.meeting-notes.override.yml`; mapping credential tanpa nilai rahasia ada di `docs/CREDENTIAL-MAPPING.md`.
 
 1. Install Docker Engine and Docker Compose Plugin on the VPS, then clone this repository.
 2. Copy `.env.example` to `.env` and replace every `replace-with-...` value. Set `N8N_HOST`, `N8N_EDITOR_BASE_URL`, and `WEBHOOK_URL` to your real HTTPS domain.
@@ -27,9 +29,9 @@ This package runs the **Meeting Notes — Main Pipeline** workflow on a VPS with
    ```
 
 6. In the imported workflow, configure these credentials before activating it:
-   - HTTP Header Auth for the three MiniMax/LLM request nodes (or recreate the credential referred to by your environment).
-   - SMTP for the three email nodes.
-   - `GROQ_API_KEY` in `.env` is already referenced by the Whisper node as an n8n expression.
+    - HTTP Header Auth for the four Koboillm/LLM request nodes (or recreate the credential referred to by your environment).
+    - Gmail OAuth2 for the three email nodes.
+   - Groq Header Auth credential for the Whisper node. The VPS implementation now stores this key in n8n's encrypted credential store.
    - Re-select or recreate the configured error workflow, if you use one.
 7. Save and activate the workflow. The form URL will use `WEBHOOK_URL`.
 
@@ -56,7 +58,7 @@ If your VPS already runs n8n with the IG Content Builder and Chromium, use the f
 
 1. Copy `Dockerfile.meeting-notes` over the VPS `Dockerfile`. It preserves the existing IG template setup and copies static `ffmpeg`/`ffprobe` binaries without relying on the removed `apk` command.
 2. Copy `docker-compose.meeting-notes.override.yml` into the same directory as the existing `docker-compose.yml`.
-3. Create a server-only `.env` entry: `GROQ_API_KEY=...`.
+3. Create or verify the encrypted Groq Header Auth credential in n8n. Do not put the key in Git or the Compose file.
 4. Copy `workflows/meeting-notes-main-pipeline.json` to `./workflows/` on the VPS.
 5. Rebuild while retaining the existing `./n8n_data` volume:
 
@@ -65,4 +67,6 @@ If your VPS already runs n8n with the IG Content Builder and Chromium, use the f
    docker compose -f docker-compose.yml -f docker-compose.meeting-notes.override.yml exec n8n n8n import:workflow --input=/workflows/meeting-notes-main-pipeline.json
    ```
 
-The imported workflow still needs its SMTP and LLM HTTP credentials configured in the n8n UI before activation.
+The imported workflow still needs its LLM, Groq, and Gmail credentials configured in the n8n UI before activation.
+
+VPS `15.232.197.72` sudah aktif memakai workflow `XscXJksppe3HR3tS`. Gunakan `scripts/push-workflow-update.ps1` untuk mengunggah JSON tersanitasi melalui SSH tanpa memasukkan secret ke Git.

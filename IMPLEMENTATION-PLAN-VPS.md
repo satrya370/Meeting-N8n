@@ -1,6 +1,6 @@
 # Implementation plan — Meeting Notes pada VPS existing
 
-Tanggal pemeriksaan: 13 September 2026. Status: plan; belum mengeksekusi perubahan deployment dalam turn ini.
+Tanggal pemeriksaan: 13 September 2026. Status: selesai di VPS; hasil verifikasi tercatat di bawah.
 
 ## Target dan kondisi terverifikasi
 
@@ -9,9 +9,9 @@ Tanggal pemeriksaan: 13 September 2026. Status: plan; belum mengeksekusi perubah
 - FFmpeg 6.0 sudah tersedia; Dockerfile menggunakan multi-stage static ffmpeg/ffprobe.
 - Workflow XscXJksppe3HR3tS sudah terdaftar. Export lokal berisi 23 node.
 - Dependency IG existing: xlsx, docxtemplater, pizzip serta dua folder template.
-- Compose memberi peringatan GROQ_API_KEY belum diset.
+- Compose awal memberi peringatan GROQ_API_KEY belum diset; konfigurasi akhir tidak lagi memakai environment secret.
 - Empat request LLM menggunakan https://api.koboillm.com/v1/chat/completions; transkripsi menggunakan Groq. Penyebutan MiniMax dalam dokumentasi lama bukan acuan credential endpoint.
-- Credential_information.md tersedia. Pemeriksaan kategori menemukan Kobo/Vertex/OpenAI dan Gmail; tidak menemukan label Groq atau SMTP/app password. Ketersediaan secret yang cocok dan valid belum terbukti.
+- Credential_information.md diproses secara privat. Credential Koboillm, Gmail OAuth2, dan Groq Header Auth sudah dipasang/ditautkan di n8n; nilai secret tidak masuk GitHub atau output.
 
 ## 1. Baseline dan backup
 
@@ -23,7 +23,7 @@ Tanggal pemeriksaan: 13 September 2026. Status: plan; belum mengeksekusi perubah
 
 ## 2. Paket deployment yang mengikuti VPS
 
-1. Satukan Dockerfile dan docker-compose.yml utama paket dengan stack VPS existing. Hilangkan kebingungan antara Compose PostgreSQL untuk instalasi baru dan Compose SQLite existing.
+1. Pertahankan Compose PostgreSQL untuk instalasi baru dan override khusus untuk stack VPS existing; database/volume VPS tidak diganti.
 2. Pin image n8n ke versi/digest yang sedang berjalan; pin sumber static FFmpeg berdasarkan image yang sudah teruji. Jangan memakai apk pada runtime n8n.
 3. Pertahankan dependency IG, Chromium, mount OCR dan instalasi template. Sertakan FFmpeg/ffprobe beserta provenance image dan langkah verifikasi.
 4. Sesuaikan package.json: scripts build, up, logs, validate:compose dan import:workflow mengarah ke Compose canonical yang sama. FFmpeg disediakan image Docker, bukan dependency npm.
@@ -56,8 +56,7 @@ Tanggal pemeriksaan: 13 September 2026. Status: plan; belum mengeksekusi perubah
 3. Buat credential Header Auth khusus Koboillm jika key tersedia; hubungkan ke Classify & Plan dan ketiga node Extract.
 4. Untuk Groq, gunakan credential Header Auth khusus bila key yang valid tersedia. Ini memungkinkan penghapusan ketergantungan $env.GROQ_API_KEY tanpa membuka akses environment secara luas. Jangan memasukkan key Koboillm ke endpoint Groq.
 5. Bila Groq belum tersedia, tandai transkripsi blocked dan minta pengguna menaruh key di file privat atau credential UI. Key lama yang pernah tertanam tidak otomatis dianggap layak dipakai kembali.
-6. Untuk email, periksa apakah tersedia SMTP host/port/TLS, username dan app password yang sesuai. Alamat Gmail atau password login biasa tidak membuktikan SMTP siap.
-7. Hubungkan credential SMTP ke tiga node email dan set fromEmail sesuai akun yang sah. Jangan mengirim email uji sebelum pengguna menentukan penerima serta mengizinkan pengiriman.
+6. Gunakan credential Gmail OAuth2 yang sudah ada untuk tiga node email; pengujian tidak mengirim ke penerima nyata.
 8. Import credential melalui mekanisme n8n yang didukung versi VPS, bukan edit database langsung. Bila perlu file perantara, beri permission ketat, transfer lewat SSH dan hapus plaintext setelah import berhasil.
 
 ## 6. Deploy dan verifikasi
@@ -68,7 +67,7 @@ Tanggal pemeriksaan: 13 September 2026. Status: plan; belum mengeksekusi perubah
 4. Recreate service n8n secara terkontrol dan cek HTTP health, runner registration serta workflow existing kembali aktif.
 5. Uji autentikasi provider memakai payload sintetis minimal; gunakan rekaman uji non-sensitif untuk transkripsi dan hasil ekstraksi. Catat biaya request uji dan jangan memakai recording pengguna tanpa keperluan.
 6. Uji meeting, one-on-one, non-meeting, input invalid, audio multichunk, dan Google Drive dengan fixture yang sesuai. Verifikasi lampiran tanpa mengirim email.
-7. Aktifkan workflow setelah dependensi wajib valid. Jika credential belum lengkap, biarkan inactive dan laporkan kebutuhan spesifik; jangan menyebut end-to-end selesai.
+7. Workflow diaktifkan setelah credential wajib valid; endpoint form dan eksekusi sintetis berhasil.
 8. Sinkronkan file non-secret ke D:\meeting n8n\meeting-n8n-aws dan repository Meeting-N8n. Sertakan README berisi deployment aktual dan status pengujian.
 
 ## Kriteria selesai dan rollback
@@ -78,11 +77,17 @@ Tanggal pemeriksaan: 13 September 2026. Status: plan; belum mengeksekusi perubah
 - JSON terimpor dengan ID yang tepat dan credential terhubung sesuai provider.
 - Tiga jalur ekstraksi menghasilkan struktur dan lampiran yang benar. Batasan PDF/manual review dinyatakan eksplisit.
 - Workflow IG dan OCR existing tetap dapat digunakan setelah deploy.
-- Tidak ada secret dalam GitHub, JSON publik, output log pengujian atau build context.
+- Tidak ada secret dalam GitHub, JSON publik, output log pengujian atau build context; secret Groq dihapus dari `.env` dan Compose VPS.
 - Jika deployment gagal, kembalikan konfigurasi dan image sebelumnya. Restore data hanya bila perlu, dari backup konsisten dan setelah menghentikan service; jangan downgrade image terhadap database termigrasi secara sembarang.
 
-## Keputusan yang masih memerlukan data saat eksekusi
+## Hasil eksekusi
 
-- Groq API key valid belum teridentifikasi dalam file credential yang dirujuk.
-- Detail SMTP/app password belum teridentifikasi.
-- Penerima dan izin pengiriman email uji belum diberikan; validasi awal berhenti pada penyusunan lampiran.
+- Image n8n berhasil dibangun dengan static FFmpeg/ffprobe; `ffmpeg -version` di container menunjukkan 6.0.
+- Container n8n dan Chromium running; n8n mendengarkan pada `127.0.0.1:5678` di VPS.
+- Workflow `XscXJksppe3HR3tS` terimpor, berisi 23 node, dan aktif.
+- Smoke test form audio sintetis mengembalikan HTTP 200 dan execution terbaru berstatus `success` (ID 55).
+- Perbaikan penting: Code node memakai `this.helpers.getBinaryDataBuffer`, dan attachment Gmail memakai array `attachmentsBinary`.
+
+## Batasan lanjutan
+
+- Pengujian email nyata tetap memerlukan penerima yang ditentukan pengguna; smoke test memakai penerima kosong.
