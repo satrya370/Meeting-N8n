@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Meeting Notes AI — a practical n8n automation demo by Satrya Pudja.">
+  <title>Meeting Notes AI — Satrya Pudja</title>
+  <style>
+    @font-face {
+      font-family: 'IBM Plex Sans';
+      src: local('IBM Plex Sans');
+      font-display: swap;
+    }
+    @font-face {
+      font-family: 'IBM Plex Mono';
+      src: local('IBM Plex Mono');
+      font-display: swap;
+    }
+    :root {
+      --paper: #fafaf8;
+      --ink: #1e2440;
+      --yellow: #f5c242;
+      --pink: #f2a9c4;
+      --carbon: #8a8778;
+      --surface: #ffffff;
+      --border: #e0ddd5;
+      --sans: 'IBM Plex Sans', system-ui, sans-serif;
+      --mono: 'IBM Plex Mono', 'Courier New', monospace;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: var(--sans); color: var(--ink); background: var(--paper);
+      min-height: 100vh; line-height: 1.65;
+    }
+    .site-header {
+      border-bottom: 2px dashed var(--border);
+      background: rgba(250, 250, 248, .94);
+    }
+    .header-inner, main, footer {
+      width: min(100% - 40px, 980px); margin: 0 auto;
+    }
+    .header-inner {
+      min-height: 58px; display: flex; align-items: center;
+      justify-content: space-between; gap: 20px;
+    }
+    .brand, .eyebrow, .status, .step-label, footer {
+      font-family: var(--mono); text-transform: uppercase; letter-spacing: .06em;
+    }
+    .brand { font-weight: 700; font-size: 14px; }
+    .header-note { color: var(--carbon); font-size: 12px; }
+    main { padding: 72px 0 64px; }
+    .hero { max-width: 760px; }
+    .eyebrow { color: var(--carbon); font-size: 12px; margin-bottom: 20px; }
+    h1 {
+      font-family: var(--mono); font-size: clamp(2.3rem, 7vw, 5rem);
+      line-height: 1.04; letter-spacing: -.055em; max-width: 720px; margin-bottom: 24px;
+    }
+    .highlight { background: var(--yellow); padding: 0 .12em; }
+    .lead { font-size: clamp(1.1rem, 2vw, 1.35rem); max-width: 650px; }
+    .supporting { color: var(--carbon); max-width: 620px; margin-top: 14px; }
+    .status {
+      display: inline-flex; align-items: center; gap: 9px; margin-top: 30px;
+      border: 1px solid var(--border); background: var(--surface);
+      padding: 8px 12px; font-size: 11px;
+    }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--carbon); }
+    .dot.online { background: #31845b; animation: pulse 2s infinite; }
+    .dot.offline { background: #b44b47; }
+    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .45; } }
+    .steps {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px;
+      margin: 56px 0 34px; padding-top: 26px; border-top: 2px dashed var(--border);
+    }
+    .step {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 6px;
+      padding: 22px; min-height: 168px;
+    }
+    .step:nth-child(2) { background: var(--pink); border-color: var(--pink); }
+    .step:nth-child(3) { background: var(--yellow); border-color: var(--yellow); }
+    .step-label { font-size: 11px; margin-bottom: 30px; }
+    .step h2 { font-family: var(--mono); font-size: 18px; line-height: 1.2; margin-bottom: 8px; }
+    .step p { font-size: 14px; line-height: 1.5; }
+    .cta-row { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+    .cta {
+      display: inline-flex; align-items: center; justify-content: center;
+      background: var(--ink); color: var(--paper); border: 1px solid var(--ink);
+      font-family: var(--mono); font-size: 14px; font-weight: 700;
+      padding: 13px 20px; border-radius: 4px; text-decoration: none;
+      transition: transform .15s, background .15s;
+    }
+    .cta:hover:not(.disabled), .cta:focus-visible:not(.disabled) {
+      background: #303759; transform: translateY(-2px);
+    }
+    .cta.disabled { background: transparent; color: var(--carbon); border-color: var(--border); cursor: not-allowed; }
+    .fine-print { color: var(--carbon); font-size: 13px; }
+    footer {
+      border-top: 2px dashed var(--border); padding: 22px 0 30px;
+      color: var(--carbon); font-size: 11px; line-height: 1.8;
+    }
+    @media (max-width: 640px) {
+      .header-note { display: none; }
+      main { padding-top: 48px; }
+      .steps { grid-template-columns: 1fr; }
+      .step { min-height: auto; }
+    }
+  </style>
+</head>
+<body>
+  <header class="site-header">
+    <div class="header-inner">
+      <span class="brand">Satrya Pudja / Work Sample</span>
+      <span class="header-note">n8n · AI automation · meeting intelligence</span>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <p class="eyebrow">Project 04 / Meeting Notes AI</p>
+      <h1>Turn a recording into <span class="highlight">usable notes.</span></h1>
+      <p class="lead">A practical n8n pipeline that transcribes meeting audio, extracts decisions and action items, then sends the result where the team already works.</p>
+      <p class="supporting">Upload a file or provide a Google Drive link. Whisper handles the transcript; structured AI output goes to Notion, Slack, and optional email.</p>
+
+      <div class="status">
+        <span class="dot" id="dot"></span>
+        <span id="status-text">Memeriksa status...</span>
+      </div>
+    </section>
+
+    <section class="steps" aria-label="How the workflow works">
+      <article class="step">
+        <p class="step-label">01 / Input</p>
+        <h2>Upload or link</h2>
+        <p>MP4, MP3, M4A, WAV, atau rekaman dari Google Drive.</p>
+      </article>
+      <article class="step">
+        <p class="step-label">02 / Process</p>
+        <h2>Transcribe &amp; extract</h2>
+        <p>Audio ditranskrip lalu dipetakan menjadi keputusan, topik, dan tugas.</p>
+      </article>
+      <article class="step">
+        <p class="step-label">03 / Output</p>
+        <h2>Share the result</h2>
+        <p>Notulen terstruktur masuk ke Notion, Slack, dan email opsional.</p>
+      </article>
+    </section>
+
+    <div class="cta-row">
+      <a href="#" class="cta disabled" id="cta-btn">Memeriksa server...</a>
+      <span class="fine-print">Portfolio trial · server personal · bisa offline</span>
+    </div>
+  </main>
+
+  <footer>
+    Built by Satrya Pudja · n8n + Whisper + Groq · <span>Data tidak disimpan permanen.</span>
+  </footer>
+
+  <script>
+    const TUNNEL_URL = 'https://chowtime-angling-threefold.ngrok-free.dev';
+    const FORM_PATH  = '/form/36283c3b-8f86-458c-a43d-36142925402f';
+    const dot  = document.getElementById('dot');
+    const text = document.getElementById('status-text');
+    const btn  = document.getElementById('cta-btn');
+
+    async function checkStatus() {
+      try {
+        await fetch(TUNNEL_URL + '/healthz', {
+          mode: 'no-cors',
+          signal: AbortSignal.timeout(5000)
+        });
+        // If we get here without exception, server is reachable
+        dot.className  = 'dot online';
+        text.textContent = 'Server Online';
+        btn.href = TUNNEL_URL + FORM_PATH;
+        btn.textContent = 'Coba Sekarang →';
+        btn.classList.remove('disabled');
+      } catch (e) {
+        console.error('Status check failed:', e);
+        dot.className  = 'dot offline';
+        text.textContent = 'Server Offline';
+        btn.textContent = 'Server sedang offline';
+        btn.classList.add('disabled');
+      }
+    }
+
+    checkStatus();
+    setInterval(checkStatus, 30000);
+  </script>
+</body>
+</html>

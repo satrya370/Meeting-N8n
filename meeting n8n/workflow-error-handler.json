@@ -1,0 +1,79 @@
+{
+  "id": "U2PZCD2RePWB2B2x",
+  "name": "Meeting Notes — Error Handler",
+  "active": false,
+  "nodes": [
+    {
+      "id": "62f2ea0d-f7d4-4ce7-b908-d3b774e19a0c",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "fc32deb7-33cf-4615-9fdf-43d3fd97c874",
+      "name": "Format Error Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        0
+      ],
+      "parameters": {
+        "jsCode": "const exec = $json.execution || {};\nconst wf = $json.workflow || {};\nconst err = exec.error || {};\nconst nodeName = err.node ? err.node.name : (exec.lastNodeExecuted || \"Unknown node\");\nconst errorMsg = err.message || \"Unknown error\";\nconst executionId = exec.id || \"-\";\nconst executionUrl = exec.url || \"-\";\nconst workflowName = wf.name || \"Meeting Notes Pipeline\";\nconst now = new Date();\nconst timestamp = now.toLocaleString(\"id-ID\", { timeZone: \"Asia/Jakarta\", hour12: false });\nconst message = [\"*Error: \" + workflowName + \" Gagal*\",\"\",\"*Node Gagal:* \" + nodeName,\"*Error:* \" + errorMsg,\"*Waktu:* \" + timestamp,\"*Execution ID:* #\" + executionId,\"Lihat execution: \" + executionUrl].join(\"\n\");\nreturn [{ json: { message, nodeName, errorMsg, executionId, executionUrl, workflowName } }];"
+      }
+    },
+    {
+      "id": "b415b26a-da12-4eca-844c-f1381a2982e8",
+      "name": "Notify - Error",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.5,
+      "position": [
+        448,
+        0
+      ],
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "C0B8BBF1QCC"
+        },
+        "text": "={{ $json.message }}",
+        "otherOptions": {}
+      },
+      "webhookId": "1d07ef39-642b-403a-86c8-6ba93ae2de73"
+    }
+  ],
+  "connections": {
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Format Error Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Error Message": {
+      "main": [
+        [
+          {
+            "node": "Notify - Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

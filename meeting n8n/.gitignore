@@ -1,0 +1,55 @@
+# Credentials & secrets
+.env
+*.env
+credentials.json
+
+# n8n runtime
+n8n.pid
+C:\Users\Satz\.n8n\
+
+# Media & test files (large, bukan source code)
+*.mp4
+*.mp3
+*.m4a
+*.wav
+test_audio*
+videoplayback*
+
+# Template & skill libraries (bukan milik project ini)
+n8n-skills/
+n8n-workflow-builder/
+n8n-workflows-Zie619/
+awesome-n8n-templates/
+4000+ N8N Workflow Automation Templates*/
+SKILL-*.md
+
+# Internal planning docs (bukan bagian dari program)
+01-SDD-meeting-notes.md
+02-RULES.md
+03-TODO.md
+
+# Helper/generator scripts (bukan bagian dari program)
+gen_*.py
+*_ops.json
+ops_*.json
+ops_list.txt
+batch*.json
+parse_op.json
+codenode_ops.json
+
+# Runtime data
+slack_channels.json
+plugins/
+
+# Tool & agent directories
+.agents/
+.claude/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Tunnel binaries + auto-generated credentials
+cloudflare/cloudflared.exe
+cloudflare/ngrok.exe
+cloudflare/*.json
