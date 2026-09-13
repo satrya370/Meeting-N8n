@@ -608,66 +608,78 @@
                   },
                   {
                       "name":  "Send Email - Meeting",
-                      "type":  "n8n-nodes-base.emailSend",
-                      "typeVersion":  2,
+                      "type":  "n8n-nodes-base.gmail",
+                      "typeVersion":  2.2,
                       "position":  [
                                        2928,
                                        -256
                                    ],
                       "parameters":  {
-                                         "fromEmail":  "igedesatrya@gmail.com",
-                                         "toEmail":  "={{ $json.to }}",
+                                         "resource":  "message",
+                                         "operation":  "send",
+                                         "sendTo":  "={{ $json.to }}",
                                          "subject":  "={{ $json.subject }}",
-                                         "emailFormat":  "html",
+                                         "emailType":  "html",
                                          "message":  "={{ $json.html }}",
                                          "options":  {
-                                                         "attachments":  "notulen"
+                                                         "attachmentsUi":  {
+                                                                               "attachmentsBinary":  {
+                                                                                                         "property":  "notulen"
+                                                                                                     }
+                                                                           }
                                                      }
                                      },
-                      "id":  "4cd89cc8-d701-491e-9647-95bf3f40b74b",
-                      "webhookId":  "6ec02a69-4bf7-47ed-892d-04145e2db84d"
+                      "id":  "4cd89cc8-d701-491e-9647-95bf3f40b74b"
                   },
                   {
                       "name":  "Send Email - One on One",
-                      "type":  "n8n-nodes-base.emailSend",
-                      "typeVersion":  2,
+                      "type":  "n8n-nodes-base.gmail",
+                      "typeVersion":  2.2,
                       "position":  [
                                        2928,
                                        0
                                    ],
                       "parameters":  {
-                                         "fromEmail":  "igedesatrya@gmail.com",
-                                         "toEmail":  "={{ $json.to }}",
+                                         "resource":  "message",
+                                         "operation":  "send",
+                                         "sendTo":  "={{ $json.to }}",
                                          "subject":  "={{ $json.subject }}",
-                                         "emailFormat":  "html",
+                                         "emailType":  "html",
                                          "message":  "={{ $json.html }}",
                                          "options":  {
-                                                         "attachments":  "notulen"
+                                                         "attachmentsUi":  {
+                                                                               "attachmentsBinary":  {
+                                                                                                         "property":  "notulen"
+                                                                                                     }
+                                                                           }
                                                      }
                                      },
-                      "id":  "f09e6cf9-f624-4ce9-ad9e-d23145eed2cb",
-                      "webhookId":  "8a7f9463-4b24-424c-b029-5066044ad362"
+                      "id":  "f09e6cf9-f624-4ce9-ad9e-d23145eed2cb"
                   },
                   {
                       "name":  "Send Email - Non Meeting",
-                      "type":  "n8n-nodes-base.emailSend",
-                      "typeVersion":  2,
+                      "type":  "n8n-nodes-base.gmail",
+                      "typeVersion":  2.2,
                       "position":  [
                                        2928,
                                        160
                                    ],
                       "parameters":  {
-                                         "fromEmail":  "igedesatrya@gmail.com",
-                                         "toEmail":  "={{ $json.to }}",
+                                         "resource":  "message",
+                                         "operation":  "send",
+                                         "sendTo":  "={{ $json.to }}",
                                          "subject":  "={{ $json.subject }}",
-                                         "emailFormat":  "html",
+                                         "emailType":  "html",
                                          "message":  "={{ $json.html }}",
                                          "options":  {
-                                                         "attachments":  "notulen"
+                                                         "attachmentsUi":  {
+                                                                               "attachmentsBinary":  {
+                                                                                                         "property":  "notulen"
+                                                                                                     }
+                                                                           }
                                                      }
                                      },
-                      "id":  "fc6072ee-74aa-4bdb-bee4-4e0690bd0737",
-                      "webhookId":  "39ed0c31-d055-4db4-92c3-c00a6321130a"
+                      "id":  "fc6072ee-74aa-4bdb-bee4-4e0690bd0737"
                   }
               ],
     "connections":  {
