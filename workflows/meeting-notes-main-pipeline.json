@@ -487,7 +487,13 @@
                       "retryOnFail":  true,
                       "waitBetweenTries":  5000,
                       "maxTries":  3,
-                      "onError":  "stopWorkflow"
+                      "onError":  "stopWorkflow",
+                      "credentials":  {
+                                          "httpHeaderAuth":  {
+                                                                 "id":  "PDV1vyCD82gzcGNy",
+                                                                 "name":  "KobiLLM Authorization - IG Content Builder"
+                                                             }
+                                      }
                   },
                   {
                       "parameters":  {
@@ -513,7 +519,13 @@
                       "retryOnFail":  true,
                       "waitBetweenTries":  5000,
                       "maxTries":  3,
-                      "onError":  "stopWorkflow"
+                      "onError":  "stopWorkflow",
+                      "credentials":  {
+                                          "httpHeaderAuth":  {
+                                                                 "id":  "PDV1vyCD82gzcGNy",
+                                                                 "name":  "KobiLLM Authorization - IG Content Builder"
+                                                             }
+                                      }
                   },
                   {
                       "parameters":  {
@@ -539,7 +551,13 @@
                       "retryOnFail":  true,
                       "waitBetweenTries":  5000,
                       "maxTries":  3,
-                      "onError":  "stopWorkflow"
+                      "onError":  "stopWorkflow",
+                      "credentials":  {
+                                          "httpHeaderAuth":  {
+                                                                 "id":  "PDV1vyCD82gzcGNy",
+                                                                 "name":  "KobiLLM Authorization - IG Content Builder"
+                                                             }
+                                      }
                   },
                   {
                       "parameters":  {
@@ -565,7 +583,13 @@
                       "retryOnFail":  true,
                       "waitBetweenTries":  5000,
                       "maxTries":  3,
-                      "onError":  "stopWorkflow"
+                      "onError":  "stopWorkflow",
+                      "credentials":  {
+                                          "httpHeaderAuth":  {
+                                                                 "id":  "PDV1vyCD82gzcGNy",
+                                                                 "name":  "KobiLLM Authorization - IG Content Builder"
+                                                             }
+                                      }
                   },
                   {
                       "parameters":  {
@@ -623,13 +647,21 @@
                                          "message":  "={{ $json.html }}",
                                          "options":  {
                                                          "attachmentsUi":  {
-                                                                               "attachmentsBinary":  {
-                                                                                                         "property":  "notulen"
-                                                                                                     }
+                                                                               "attachmentsBinary":  [
+                                                                                                         {
+                                                                                                             "property":  "notulen"
+                                                                                                         }
+                                                                                                     ]
                                                                            }
                                                      }
                                      },
-                      "id":  "4cd89cc8-d701-491e-9647-95bf3f40b74b"
+                      "id":  "4cd89cc8-d701-491e-9647-95bf3f40b74b",
+                      "credentials":  {
+                                          "gmailOAuth2":  {
+                                                              "id":  "MvNkkpoXAqmWU2rZ",
+                                                              "name":  "Gmail OAuth2 - IG Content Builder"
+                                                          }
+                                      }
                   },
                   {
                       "name":  "Send Email - One on One",
@@ -648,13 +680,21 @@
                                          "message":  "={{ $json.html }}",
                                          "options":  {
                                                          "attachmentsUi":  {
-                                                                               "attachmentsBinary":  {
-                                                                                                         "property":  "notulen"
-                                                                                                     }
+                                                                               "attachmentsBinary":  [
+                                                                                                         {
+                                                                                                             "property":  "notulen"
+                                                                                                         }
+                                                                                                     ]
                                                                            }
                                                      }
                                      },
-                      "id":  "f09e6cf9-f624-4ce9-ad9e-d23145eed2cb"
+                      "id":  "f09e6cf9-f624-4ce9-ad9e-d23145eed2cb",
+                      "credentials":  {
+                                          "gmailOAuth2":  {
+                                                              "id":  "MvNkkpoXAqmWU2rZ",
+                                                              "name":  "Gmail OAuth2 - IG Content Builder"
+                                                          }
+                                      }
                   },
                   {
                       "name":  "Send Email - Non Meeting",
@@ -673,13 +713,21 @@
                                          "message":  "={{ $json.html }}",
                                          "options":  {
                                                          "attachmentsUi":  {
-                                                                               "attachmentsBinary":  {
-                                                                                                         "property":  "notulen"
-                                                                                                     }
+                                                                               "attachmentsBinary":  [
+                                                                                                         {
+                                                                                                             "property":  "notulen"
+                                                                                                         }
+                                                                                                     ]
                                                                            }
                                                      }
                                      },
-                      "id":  "fc6072ee-74aa-4bdb-bee4-4e0690bd0737"
+                      "id":  "fc6072ee-74aa-4bdb-bee4-4e0690bd0737",
+                      "credentials":  {
+                                          "gmailOAuth2":  {
+                                                              "id":  "MvNkkpoXAqmWU2rZ",
+                                                              "name":  "Gmail OAuth2 - IG Content Builder"
+                                                          }
+                                      }
                   }
               ],
     "connections":  {
