@@ -1,112 +1,108 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="id">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="Meeting Notes AI — a practical n8n automation demo by Satrya Pudja.">
+  <meta name="description" content="Meeting Notes AI oleh Satrya Pudja: upload rekaman atau gunakan link Google Drive, lalu dapatkan notulen terstruktur dalam Markdown atau PDF melalui workflow n8n.">
+  <link rel="canonical" href="https://satrya370.github.io/Meeting-N8n/">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://satrya370.github.io/Meeting-N8n/">
+  <meta property="og:title" content="Meeting Notes AI — Turn recordings into usable notes">
+  <meta property="og:description" content="An n8n pipeline that transcribes recordings, classifies the content, extracts decisions and action items, then delivers structured notes by email.">
+  <meta property="og:image" content="https://satrya370.github.io/Meeting-N8n/og-image.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Meeting Notes AI — Satrya Pudja">
+  <meta name="twitter:description" content="From recording or Google Drive link to structured meeting notes in Markdown or PDF.">
+  <meta name="twitter:image" content="https://satrya370.github.io/Meeting-N8n/og-image.png">
   <title>Meeting Notes AI — Satrya Pudja</title>
   <style>
-    @font-face { font-family: 'IBM Plex Sans'; src: local('IBM Plex Sans'); font-display: swap; }
-    @font-face { font-family: 'IBM Plex Mono'; src: local('IBM Plex Mono'); font-display: swap; }
-    :root {
-      --paper: #fafaf8; --ink: #1e2440; --yellow: #f5c242; --pink: #f2a9c4;
-      --carbon: #8a8778; --surface: #ffffff; --border: #e0ddd5;
-      --sans: 'IBM Plex Sans', system-ui, sans-serif;
-      --mono: 'IBM Plex Mono', 'Courier New', monospace;
-    }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: var(--sans); color: var(--ink); background: var(--paper);
-      min-height: 100vh; line-height: 1.65;
-    }
-    .site-header { border-bottom: 2px dashed var(--border); background: rgba(250, 250, 248, .94); }
-    .header-inner, main, footer { width: min(100% - 40px, 980px); margin: 0 auto; }
-    .header-inner { min-height: 58px; display: flex; align-items: center; justify-content: space-between; gap: 20px; }
-    .brand, .eyebrow, .status, .step-label, footer { font-family: var(--mono); text-transform: uppercase; letter-spacing: .06em; }
-    .brand { font-weight: 700; font-size: 14px; }
-    .header-note { color: var(--carbon); font-size: 12px; }
-    main { padding: 72px 0 64px; }
-    .hero { max-width: 760px; }
-    .eyebrow { color: var(--carbon); font-size: 12px; margin-bottom: 20px; }
-    h1 { font-family: var(--mono); font-size: clamp(2.3rem, 7vw, 5rem); line-height: 1.04; letter-spacing: -.055em; max-width: 720px; margin-bottom: 24px; }
-    .highlight { background: var(--yellow); padding: 0 .12em; }
-    .lead { font-size: clamp(1.1rem, 2vw, 1.35rem); max-width: 650px; }
-    .supporting { color: var(--carbon); max-width: 620px; margin-top: 14px; }
-    .status { display: inline-flex; align-items: center; gap: 9px; margin-top: 30px; border: 1px solid var(--border); background: var(--surface); padding: 8px 12px; font-size: 11px; }
-    .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--carbon); }
-    .dot.online { background: #31845b; animation: pulse 2s infinite; }
-    .dot.offline { background: #b44b47; }
-    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .45; } }
-    .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin: 56px 0 34px; padding-top: 26px; border-top: 2px dashed var(--border); }
-    .step { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 22px; min-height: 168px; }
-    .step:nth-child(2) { background: var(--pink); border-color: var(--pink); }
-    .step:nth-child(3) { background: var(--yellow); border-color: var(--yellow); }
-    .step-label { font-size: 11px; margin-bottom: 30px; }
-    .step h2 { font-family: var(--mono); font-size: 18px; line-height: 1.2; margin-bottom: 8px; }
-    .step p { font-size: 14px; line-height: 1.5; }
-    .cta-row { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
-    .cta { display: inline-flex; align-items: center; justify-content: center; background: var(--ink); color: var(--paper); border: 1px solid var(--ink); font-family: var(--mono); font-size: 14px; font-weight: 700; padding: 13px 20px; border-radius: 4px; text-decoration: none; transition: transform .15s, background .15s; }
-    .cta:hover:not(.disabled), .cta:focus-visible:not(.disabled) { background: #303759; transform: translateY(-2px); }
-    .cta.disabled { background: transparent; color: var(--carbon); border-color: var(--border); cursor: not-allowed; }
-    .fine-print { color: var(--carbon); font-size: 13px; }
-    footer { border-top: 2px dashed var(--border); padding: 22px 0 30px; color: var(--carbon); font-size: 11px; line-height: 1.8; }
-    @media (max-width: 640px) { .header-note { display: none; } main { padding-top: 48px; } .steps { grid-template-columns: 1fr; } .step { min-height: auto; } }
+    :root { --paper:#fafaf8; --ink:#1e2440; --yellow:#f5c242; --pink:#f2a9c4; --blue:#c9dff4; --carbon:#6f6b60; --surface:#fff; --border:#dedbd2; --sans:'IBM Plex Sans',system-ui,sans-serif; --mono:'IBM Plex Mono','Courier New',monospace; }
+    * { box-sizing:border-box; margin:0; padding:0; }
+    html { scroll-behavior:smooth; }
+    body { color:var(--ink); background:var(--paper); font-family:var(--sans); line-height:1.65; }
+    a { color:inherit; }
+    .site-header { border-bottom:2px dashed var(--border); background:rgba(250,250,248,.95); position:sticky; top:0; z-index:2; }
+    .header-inner, main, footer { width:min(100% - 40px,1040px); margin:0 auto; }
+    .header-inner { min-height:62px; display:flex; align-items:center; justify-content:space-between; gap:20px; }
+    .brand,.eyebrow,.status,.section-label,footer { font-family:var(--mono); text-transform:uppercase; letter-spacing:.06em; }
+    .brand { font-weight:700; font-size:14px; text-decoration:none; }
+    .header-nav { display:flex; gap:18px; font-family:var(--mono); font-size:11px; }
+    .header-nav a { text-decoration:none; color:var(--carbon); }
+    .header-nav a:hover { color:var(--ink); }
+    main { padding:76px 0 84px; }
+    .hero { max-width:820px; }
+    .eyebrow,.section-label { color:var(--carbon); font-size:11px; margin-bottom:20px; }
+    h1,h2,h3 { font-family:var(--mono); }
+    h1 { font-size:clamp(2.45rem,7vw,5.6rem); line-height:1.02; letter-spacing:-.06em; max-width:850px; margin-bottom:26px; }
+    h2 { font-size:clamp(1.7rem,4vw,2.6rem); line-height:1.1; letter-spacing:-.04em; margin-bottom:14px; }
+    h3 { font-size:18px; line-height:1.2; margin-bottom:10px; }
+    .highlight { background:var(--yellow); padding:0 .12em; }
+    .lead { font-size:clamp(1.1rem,2vw,1.35rem); max-width:730px; }
+    .supporting { color:var(--carbon); max-width:700px; margin-top:14px; }
+    .cta-row { display:flex; align-items:center; gap:14px; flex-wrap:wrap; margin-top:30px; }
+    .cta { display:inline-flex; align-items:center; justify-content:center; background:var(--ink); color:var(--paper); border:1px solid var(--ink); border-radius:4px; padding:13px 20px; font-family:var(--mono); font-size:13px; font-weight:700; text-decoration:none; transition:transform .15s,background .15s; }
+    .cta:hover,.cta:focus-visible { background:#303759; transform:translateY(-2px); }
+    .cta.secondary { background:transparent; color:var(--ink); border-color:var(--border); }
+    .status { display:inline-flex; align-items:center; gap:9px; margin-top:28px; border:1px solid var(--border); background:var(--surface); padding:8px 12px; font-size:10px; }
+    .dot { width:8px; height:8px; border-radius:50%; background:var(--carbon); }
+    .dot.online { background:#31845b; animation:pulse 2s infinite; }
+    .dot.offline { background:#b44b47; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.45} }
+    .section { margin-top:86px; padding-top:30px; border-top:2px dashed var(--border); }
+    .section-intro { color:var(--carbon); max-width:720px; margin-bottom:24px; }
+    .grid { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; }
+    .grid.two { grid-template-columns:repeat(2,1fr); }
+    .card { background:var(--surface); border:1px solid var(--border); border-radius:6px; padding:24px; min-height:180px; }
+    .card:nth-child(2) { background:var(--pink); border-color:var(--pink); }
+    .card:nth-child(3) { background:var(--yellow); border-color:var(--yellow); }
+    .card:nth-child(4) { background:var(--blue); border-color:var(--blue); }
+    .card p { font-size:14px; line-height:1.55; }
+    .card-label { color:var(--carbon); font-family:var(--mono); font-size:10px; letter-spacing:.06em; margin-bottom:28px; text-transform:uppercase; }
+    .flow { display:grid; grid-template-columns:repeat(6,1fr); gap:8px; }
+    .flow-step { background:var(--surface); border:1px solid var(--border); padding:16px 13px; min-height:145px; }
+    .flow-step strong { display:block; color:var(--carbon); font-family:var(--mono); font-size:10px; margin-bottom:24px; }
+    .flow-step span { display:block; font-family:var(--mono); font-size:14px; font-weight:700; line-height:1.25; }
+    .flow-step p { color:var(--carbon); font-size:12px; margin-top:8px; line-height:1.4; }
+    .detail-list { display:grid; gap:0; border-top:1px solid var(--border); }
+    .detail-row { display:grid; grid-template-columns:190px 1fr; gap:24px; padding:17px 0; border-bottom:1px solid var(--border); }
+    .detail-row strong { font-family:var(--mono); font-size:13px; }
+    .detail-row p { color:var(--carbon); font-size:14px; }
+    .callout { background:var(--ink); color:var(--paper); padding:30px; border-radius:6px; }
+    .callout h2 { color:var(--yellow); }
+    .callout p { max-width:680px; color:#e8e7df; }
+    .fine-print { color:var(--carbon); font-size:12px; }
+    footer { border-top:2px dashed var(--border); padding:24px 0 34px; color:var(--carbon); font-size:10px; line-height:1.8; }
+    @media (max-width:800px) { .flow { grid-template-columns:repeat(3,1fr); } }
+    @media (max-width:640px) { .header-nav { display:none; } main { padding-top:52px; } .grid,.grid.two,.flow { grid-template-columns:1fr; } .detail-row { grid-template-columns:1fr; gap:5px; } .card { min-height:auto; } }
   </style>
 </head>
 <body>
-  <header class="site-header">
-    <div class="header-inner">
-      <span class="brand">Satrya Pudja / Work Sample</span>
-      <span class="header-note">n8n · AI automation · meeting intelligence</span>
-    </div>
-  </header>
+  <header class="site-header"><div class="header-inner"><a class="brand" href="https://satryapudja.site/">Satrya Pudja / Work Sample</a><nav class="header-nav" aria-label="Page navigation"><a href="#workflow">Workflow</a><a href="#outputs">Outputs</a><a href="#try-it">Try it</a></nav></div></header>
   <main>
     <section class="hero">
       <p class="eyebrow">Project 04 / Meeting Notes AI</p>
       <h1>Turn a recording into <span class="highlight">usable notes.</span></h1>
-      <p class="lead">A practical n8n pipeline that transcribes meeting audio, extracts decisions and action items, then sends the result where the team already works.</p>
-      <p class="supporting">Upload a file or provide a Google Drive link. Whisper handles the transcript; structured AI output goes to Notion, Slack, and optional email.</p>
-      <div class="status"><span class="dot" id="dot"></span><span id="status-text">Memeriksa status...</span></div>
+      <p class="lead">A practical n8n pipeline that turns meeting audio into structured notes: transcript, topics, decisions, action items, and a clear follow-up email.</p>
+      <p class="supporting">Upload a recording or provide a Google Drive link. The workflow converts audio, transcribes it with Whisper, classifies the content, selects the right extraction path, and delivers Markdown or PDF to the recipient you choose.</p>
+      <div class="status" aria-live="polite"><span class="dot" id="dot"></span><span id="status-text">Memeriksa status server...</span></div>
+      <div class="cta-row"><a class="cta" id="cta-btn" href="#try-it">Memeriksa server...</a><a class="cta secondary" href="#workflow">See the workflow</a></div>
     </section>
-    <section class="steps" aria-label="How the workflow works">
-      <article class="step"><p class="step-label">01 / Input</p><h2>Upload or link</h2><p>MP4, MP3, M4A, WAV, atau rekaman dari Google Drive.</p></article>
-      <article class="step"><p class="step-label">02 / Process</p><h2>Transcribe &amp; extract</h2><p>Audio ditranskrip lalu dipetakan menjadi keputusan, topik, dan tugas.</p></article>
-      <article class="step"><p class="step-label">03 / Output</p><h2>Share the result</h2><p>Notulen terstruktur masuk ke Notion, Slack, dan email opsional.</p></article>
-    </section>
-    <div class="cta-row"><a href="#" class="cta disabled" id="cta-btn">Memeriksa server...</a><span class="fine-print">Portfolio trial · server personal · bisa offline</span></div>
+    <section class="section" id="workflow"><p class="section-label">01 / The pipeline</p><h2>From raw audio to a useful handoff.</h2><p class="section-intro">The workflow is deliberately staged. Each branch has a job, so the output is more useful than a raw transcript dumped into an inbox.</p><div class="flow" aria-label="Meeting Notes workflow stages">
+      <div class="flow-step"><strong>01 / INPUT</strong><span>Upload or link</span><p>File audio/video or a shared Google Drive link.</p></div><div class="flow-step"><strong>02 / NORMALIZE</strong><span>Convert audio</span><p>Normalize the incoming recording before transcription.</p></div><div class="flow-step"><strong>03 / TRANSCRIBE</strong><span>Whisper</span><p>Transcribe the recording, including longer files in chunks.</p></div><div class="flow-step"><strong>04 / CLASSIFY</strong><span>Route content</span><p>Detect meeting, one-on-one, or non-meeting content.</p></div><div class="flow-step"><strong>05 / EXTRACT</strong><span>Structure notes</span><p>Pull out the fields that matter for that content type.</p></div><div class="flow-step"><strong>06 / DELIVER</strong><span>Email output</span><p>Send the finished Markdown or PDF to the chosen address.</p></div>
+    </div></section>
+    <section class="section"><p class="section-label">02 / Input &amp; routing</p><h2>One form, three useful paths.</h2><div class="grid"><article class="card"><p class="card-label">Input A</p><h3>Upload a recording</h3><p>Use MP4, MKV, MOV, M4A, MP3, WAV, WEBM, or OGG. The form accepts files up to 150 MB and recordings up to 60 minutes.</p></article><article class="card"><p class="card-label">Input B</p><h3>Use Google Drive</h3><p>Paste a shareable Drive file link when the recording is already stored elsewhere. The workflow extracts the file ID and downloads it before processing.</p></article><article class="card"><p class="card-label">AI router</p><h3>Classify first</h3><p>The transcript is classified before extraction: regular meeting, one-on-one, or non-meeting content. Each route gets a purpose-built output structure.</p></article></div></section>
+    <section class="section" id="outputs"><p class="section-label">03 / Deliverables</p><h2>What comes back.</h2><div class="detail-list"><div class="detail-row"><strong>Meeting notes</strong><p>Structured summary with meeting context, key topics, decisions, action items, owners, deadlines, and follow-up points extracted from the conversation.</p></div><div class="detail-row"><strong>One-on-one notes</strong><p>A dedicated path for one-on-one conversations, keeping personal check-ins and development follow-ups separate from regular team-meeting structure.</p></div><div class="detail-row"><strong>Non-meeting content</strong><p>A safer fallback for recordings that are not actually meetings, instead of forcing every piece of audio into a meeting template.</p></div><div class="detail-row"><strong>Markdown or PDF</strong><p>Select the output format in the form. The result is delivered by email when an address is provided; the email field can accept multiple recipients separated by commas.</p></div></div></section>
+    <section class="section"><p class="section-label">04 / Why it is useful</p><h2>More than transcription.</h2><div class="grid two"><article class="card"><p class="card-label">Signal over noise</p><h3>Decisions and tasks are first-class output</h3><p>The workflow is designed around what a team needs after a meeting: what was decided, who owns the next move, and what needs to happen next.</p></article><article class="card"><p class="card-label">Flexible handoff</p><h3>Use the format your team already reads</h3><p>Markdown stays easy to copy into existing tools; PDF gives you a stable attachment for records, clients, or formal follow-up.</p></article><article class="card"><p class="card-label">Custom context</p><h3>Tell the AI what to focus on</h3><p>Add instructions such as “focus on technical action items”, “write in English”, or “ignore small talk” before processing.</p></article><article class="card"><p class="card-label">Personal project</p><h3>Built as an automation work sample</h3><p>This demonstrates orchestration, media handling, AI classification, branching, structured extraction, and delivery in one practical workflow.</p></article></div></section>
+    <section class="section"><div class="callout" id="try-it"><p class="section-label" style="color:#f5c242">05 / Try the live form</p><h2>Have a recording ready?</h2><p>Use the live intake form to submit an audio/video file or a Google Drive link. The demo server may be offline when the local n8n host or its tunnel is not running.</p><div class="cta-row"><a class="cta" id="cta-bottom" href="#try-it">Open the live form</a><span class="fine-print" style="color:#c9c7bd">No email is sent unless you provide a recipient.</span></div></div></section>
+    <section class="section"><p class="section-label">06 / Scope</p><h2>Important constraints.</h2><p class="section-intro">This is a portfolio demo and personal n8n deployment, not a production records-management system. Do not upload sensitive recordings without confirming that the setup is appropriate for them.</p><div class="grid two"><article class="card"><p class="card-label">Limits</p><h3>150 MB / 60 minutes</h3><p>Those are the current form limits. Longer recordings may need to be split before submission, and transcription providers may apply their own rate limits.</p></article><article class="card"><p class="card-label">Privacy</p><h3>Use non-sensitive test material</h3><p>Recordings pass through the configured transcription and AI services. Use sample or consented material for this public work sample.</p></article></div></section>
   </main>
-  <footer>Built by Satrya Pudja · n8n + Whisper + Groq · <span>Data tidak disimpan permanen.</span></footer>
-
+  <footer>Built by Satrya Pudja · n8n + Whisper + AI classification · <span>Meeting Notes AI work sample</span></footer>
   <script>
-    const TUNNEL_URL = 'https://requires-flower-represent-los.trycloudflare.com';
-    const FORM_PATH  = '/form/36283c3b-8f86-458c-a43d-36142925402f';
-    const dot  = document.getElementById('dot');
-    const text = document.getElementById('status-text');
-    const btn  = document.getElementById('cta-btn');
-
-    async function checkStatus() {
-      try {
-        await fetch(TUNNEL_URL + '/healthz', {
-          mode: 'no-cors',
-          signal: AbortSignal.timeout(5000)
-        });
-        // If we get here without exception, server is reachable
-        dot.className  = 'dot online';
-        text.textContent = 'Server Online';
-        btn.href = TUNNEL_URL + FORM_PATH;
-        btn.textContent = 'Coba Sekarang →';
-        btn.classList.remove('disabled');
-      } catch (e) {
-        console.error('Status check failed:', e);
-        dot.className  = 'dot offline';
-        text.textContent = 'Server Offline';
-        btn.textContent = 'Server sedang offline';
-        btn.classList.add('disabled');
-      }
-    }
-
-    checkStatus();
-    setInterval(checkStatus, 30000);
+    const TUNNEL_URL = 'https://7jg9qwgr-5678.asse.devtunnels.ms';
+    const FORM_PATH = '/form/36283c3b-8f86-458c-a43d-36142925402f';
+    const dot = document.getElementById('dot'); const statusText = document.getElementById('status-text'); const cta = document.getElementById('cta-btn'); const bottomCta = document.getElementById('cta-bottom');
+    async function checkStatus() { try { const response = await fetch(TUNNEL_URL + '/healthz', { mode:'cors', signal:AbortSignal.timeout(5000) }); if (!response.ok) throw new Error('Health check failed'); dot.className='dot online'; statusText.textContent='Server online'; cta.href=TUNNEL_URL+FORM_PATH; bottomCta.href=TUNNEL_URL+FORM_PATH; cta.textContent='Try the live form →'; } catch (error) { dot.className='dot offline'; statusText.textContent='Server offline'; cta.textContent='Server sedang offline'; cta.href='#try-it'; bottomCta.href='#try-it'; } }
+    checkStatus(); setInterval(checkStatus, 30000);
   </script>
 </body>
 </html>
